@@ -56,8 +56,8 @@ export default function Dashboard() {
     }
 
     .dashboard-shell {
-      max-width: 1500px;
-      margin: 0 auto;
+      width: 100%;
+      max-width: none;
     }
 
     /* HEADER */

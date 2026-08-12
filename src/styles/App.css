@@ -37,6 +37,13 @@ body {
   margin-left: 236px;
 }
 
+/* Every routed page fills the space beside the fixed navigation. */
+.dashboard > main {
+  flex: 1 1 auto;
+  width: 0;
+  min-width: 0;
+}
+
 .sidebar {
   width: 236px;
   background: var(--teal-dark);
@@ -51,6 +58,48 @@ body {
   height: 100vh;
   overflow: auto;
   z-index: 30;
+}
+
+/* Responsive sidebar: hamburger and overlay for tablet/phone */
+.hamburger-btn {
+  display: none;
+  position: fixed;
+  left: 10px;
+  top: 10px;
+  z-index: 9999;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.92);
+  border: none;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(8,10,12,0.06);
+  pointer-events: auto;
+}
+
+.hamburger-btn svg {
+  width: 17px;
+  height: 17px;
+}
+
+.sidebar-close {
+  display: none;
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: transparent;
+  border: 0;
+  color: var(--paper);
+  cursor: pointer;
+}
+
+.sidebar-overlay {
+  display: none;
 }
 
 .brand {
@@ -133,28 +182,23 @@ nav {
   font-weight: 600;
 }
 
-.sidebar-foot {
-  margin-top: auto;
-  padding-top: 18px;
-  border-top: 1px solid rgba(246, 243, 236, 0.12);
+.sidebar {
+  width: 236px;
+  background: var(--teal-dark);
+  color: var(--paper);
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  padding: 28px 18px;
+  flex-shrink: 0;
+  position: fixed;
+  left: 0;
+  top: 0;
+  height: 100vh;
+  overflow: auto;
+  z-index: 30;
+  transition: transform 220ms ease;
 }
 
-.avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: var(--amber);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: 'Space Grotesk', sans-serif;
-  font-weight: 700;
-  color: var(--teal-dark);
-  font-size: 13px;
-}
 
 .foot-name {
   font-size: 13px;
@@ -279,6 +323,7 @@ nav {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
+  margin-bottom: 16px;
 }
 
 .stat-label {
@@ -481,6 +526,27 @@ tr:last-child td {
   color: var(--sage);
 }
 
+/* Responsive behavior: show hamburger only on tablet/phone and enable overlay/sidebar slide */
+/* Desktop: ensure hamburger hidden and sidebar static */
+@media (min-width: 1025px) {
+  .hamburger-btn { display: none; }
+  .sidebar { transform: none !important; position: fixed; left: 0; top: 0; }
+  .dashboard { margin-left: 236px; }
+  .sidebar-overlay { display: none !important; }
+}
+
+/* Tablet / mobile: enable slide-in sidebar and hamburger */
+@media (max-width: 1024px) {
+  .dashboard { margin-left: 0; }
+  .hamburger-btn { display: flex; }
+  .sidebar { transform: translateX(-100%); }
+  .sidebar-close { display: block; }
+  .sidebar-overlay { display: block; position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 50; opacity: 0; pointer-events: none; transition: opacity 220ms ease; }
+  .dashboard.sidebar-open .sidebar { transform: translateX(0); z-index: 70; }
+  .dashboard.sidebar-open .sidebar-overlay { opacity: 1; pointer-events: auto; }
+  .main { padding: 18px; }
+}
+
 .pill-card {
   background: var(--teal-tint);
   color: var(--teal);
@@ -636,12 +702,11 @@ tr:last-child td {
 
 @media (max-width: 720px) {
   .dashboard {
-    flex-direction: column;
     margin-left: 0;
   }
 
-  .sidebar {
-    display: none;
+  .dashboard > main {
+    width: 100%;
   }
 
   .main {
