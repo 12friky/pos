@@ -163,6 +163,16 @@ nav {
   font-size: 14px;
   font-weight: 500;
   transition: background 0.15s ease, color 0.15s ease;
+  background: transparent;
+  border: none;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+
+.nav-item:hover {
+  background: rgba(246, 243, 236, 0.06);
+  color: var(--paper);
 }
 
 .nav-item svg {
