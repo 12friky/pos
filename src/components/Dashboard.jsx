@@ -717,7 +717,7 @@ export default function Dashboard() {
     }
 
     @media (max-width: 800px) {
-      .dashboard {
+      .dashboard-page {
         padding: 20px 16px 30px;
       }
 
