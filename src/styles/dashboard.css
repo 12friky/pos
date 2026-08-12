@@ -1,0 +1,789 @@
+.reports-page {
+  min-height: 100vh;
+  padding: 30px;
+  background: #f5f6f3;
+  color: #1d382d;
+}
+
+/* HEADER */
+
+.reports-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 25px;
+  margin-bottom: 26px;
+}
+
+.reports-eyebrow,
+.reports-panel-eyebrow {
+  color: #909a93;
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 1.25px;
+}
+
+.reports-header h1 {
+  margin: 6px 0 0;
+  color: #18382b;
+  font-size: 30px;
+  line-height: 1.1;
+  letter-spacing: -0.7px;
+}
+
+.reports-header p {
+  margin: 8px 0 0;
+  color: #89948d;
+  font-size: 13px;
+}
+
+.reports-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.reports-period,
+.transaction-actions select {
+  height: 43px;
+  padding: 0 13px;
+  border: 1px solid #e1e6e1;
+  border-radius: 11px;
+  background: #fff;
+  color: #536159;
+  outline: none;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.reports-print-btn {
+  height: 43px;
+  padding: 0 15px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  border-radius: 11px;
+  background: #1f513d;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+  box-shadow: 0 5px 14px rgba(31, 81, 61, 0.15);
+}
+
+.reports-print-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+
+/* SUMMARY CARDS */
+
+.reports-summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 15px;
+  margin-bottom: 18px;
+}
+
+.report-stat-card {
+  min-height: 128px;
+  padding: 19px;
+  border: 1px solid #e5e9e5;
+  border-radius: 17px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 5px 18px rgba(35, 56, 45, 0.035);
+}
+
+.report-stat-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.report-stat-title {
+  color: #89938c;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.report-change {
+  padding: 5px 8px;
+  border-radius: 20px;
+  font-size: 9px;
+  font-weight: 750;
+}
+
+.report-change-up {
+  background: #e9f4ed;
+  color: #3c805d;
+}
+
+.report-change-down {
+  background: #edf3ef;
+  color: #547163;
+}
+
+.report-stat-value {
+  margin-top: 13px;
+  color: #203c30;
+  font-size: 25px;
+  font-weight: 750;
+  letter-spacing: -0.6px;
+}
+
+.report-stat-description {
+  margin-top: 5px;
+  color: #9ca59f;
+  font-size: 10px;
+}
+
+
+/* MAIN GRID */
+
+.reports-main-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 330px;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.reports-panel {
+  border: 1px solid #e5e9e5;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 5px 18px rgba(35, 56, 45, 0.035);
+}
+
+.sales-chart-panel {
+  padding: 21px;
+  min-height: 385px;
+}
+
+.reports-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.reports-panel h2 {
+  margin: 5px 0 0;
+  color: #274337;
+  font-size: 17px;
+  letter-spacing: -0.2px;
+}
+
+.reports-panel-header p,
+.channel-subtitle,
+.products-subtitle {
+  margin: 5px 0 0;
+  color: #9aa39d;
+  font-size: 11px;
+}
+
+.chart-total {
+  text-align: right;
+}
+
+.chart-total span {
+  display: block;
+  color: #9aa39d;
+  font-size: 9px;
+}
+
+.chart-total strong {
+  display: block;
+  margin-top: 5px;
+  color: #285d47;
+  font-size: 17px;
+}
+
+
+/* CHART */
+
+.sales-chart {
+  height: 270px;
+  margin-top: 30px;
+  display: flex;
+}
+
+.chart-y-axis {
+  width: 35px;
+  padding-bottom: 27px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  color: #a4ada7;
+  font-size: 9px;
+}
+
+.chart-area {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.chart-grid-lines {
+  position: absolute;
+  inset: 0 0 27px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.chart-grid-lines span {
+  width: 100%;
+  border-top: 1px dashed #edf0ed;
+}
+
+.chart-bars {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-around;
+  gap: 10px;
+}
+
+.report-bar-column {
+  height: 100%;
+  flex: 1;
+  max-width: 70px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.report-bar-wrapper {
+  width: 100%;
+  height: calc(100% - 28px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.report-bar {
+  position: relative;
+  width: 32px;
+  min-height: 8px;
+  border-radius: 8px 8px 3px 3px;
+  background: #79a58e;
+  cursor: pointer;
+  transition:
+    height 0.25s ease,
+    transform 0.2s ease,
+    background 0.2s ease;
+}
+
+.report-bar:hover {
+  transform: translateY(-3px);
+  background: #4d8368;
+}
+
+.report-bar-tooltip {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  padding: 6px 8px;
+  border-radius: 7px;
+  background: #203c30;
+  color: #fff;
+  white-space: nowrap;
+  font-size: 9px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.report-bar:hover .report-bar-tooltip {
+  opacity: 1;
+}
+
+.report-bar-label {
+  height: 27px;
+  padding-top: 9px;
+  color: #929c95;
+  font-size: 10px;
+}
+
+
+/* PAYMENT CHANNELS */
+
+.channel-panel {
+  padding: 21px;
+}
+
+.channel-total {
+  margin-top: 22px;
+  padding: 13px;
+  border-radius: 12px;
+  background: #f6f8f6;
+}
+
+.channel-total span {
+  display: block;
+  color: #9aa49e;
+  font-size: 10px;
+}
+
+.channel-total strong {
+  display: block;
+  margin-top: 4px;
+  color: #244c39;
+  font-size: 20px;
+}
+
+.channel-list {
+  margin-top: 16px;
+}
+
+.channel-item {
+  padding: 12px 0;
+  border-bottom: 1px solid #edf0ed;
+}
+
+.channel-item:last-child {
+  border-bottom: none;
+}
+
+.channel-item-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.channel-name-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.channel-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.channel-cash {
+  background: #e9f3ec;
+  color: #3c7b59;
+}
+
+.channel-card {
+  background: #edf1f7;
+  color: #596f91;
+}
+
+.channel-mobile {
+  background: #f3eee5;
+  color: #9a7442;
+}
+
+.channel-name-wrapper strong {
+  display: block;
+  color: #42544b;
+  font-size: 11px;
+}
+
+.channel-name-wrapper div span {
+  display: block;
+  margin-top: 2px;
+  color: #a1aaa5;
+  font-size: 9px;
+}
+
+.channel-amount {
+  color: #40564a;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.channel-progress {
+  height: 5px;
+  margin-top: 10px;
+  border-radius: 20px;
+  background: #edf0ed;
+  overflow: hidden;
+}
+
+.channel-progress div {
+  height: 100%;
+  border-radius: inherit;
+  background: #5f9277;
+}
+
+.channel-percentage {
+  margin-top: 5px;
+  color: #a2aaa5;
+  font-size: 8px;
+}
+
+
+/* LOWER GRID */
+
+.reports-lower-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 330px;
+  gap: 18px;
+}
+
+.transactions-panel {
+  overflow: hidden;
+}
+
+.transactions-panel > .reports-panel-header {
+  padding: 21px;
+  border-bottom: 1px solid #edf0ed;
+}
+
+.transaction-actions {
+  display: flex;
+  gap: 7px;
+}
+
+.transaction-actions select {
+  height: 35px;
+  padding: 0 9px;
+  font-size: 10px;
+}
+
+.transaction-actions button {
+  height: 35px;
+  padding: 0 11px;
+  border: 1px solid #e3e8e3;
+  border-radius: 9px;
+  background: #fafbf9;
+  color: #4c5e54;
+  font-size: 10px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+
+/* TABLE */
+
+.reports-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.reports-table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+}
+
+.reports-table th {
+  padding: 13px 20px;
+  text-align: left;
+  color: #9ca49f;
+  background: #fafbf9;
+  border-bottom: 1px solid #edf0ed;
+  font-size: 9px;
+  letter-spacing: 0.7px;
+}
+
+.reports-table td {
+  padding: 13px 20px;
+  border-bottom: 1px solid #f0f2ef;
+}
+
+.reports-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.reports-table tbody tr:hover {
+  background: #fbfcfb;
+}
+
+.transaction-id {
+  color: #527060;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.customer-cell {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.customer-avatar {
+  width: 29px;
+  height: 29px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #edf3ef;
+  color: #47765d;
+  font-size: 8px;
+  font-weight: 750;
+}
+
+.customer-cell span:last-child {
+  color: #44574d;
+  font-size: 10px;
+  font-weight: 550;
+}
+
+.transaction-amount {
+  color: #354d40;
+  font-size: 10px;
+}
+
+.payment-pill {
+  display: inline-flex;
+  padding: 5px 8px;
+  border-radius: 15px;
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.payment-cash {
+  background: #eaf4ed;
+  color: #3c7857;
+}
+
+.payment-card {
+  background: #edf1f8;
+  color: #5c708f;
+}
+
+.payment-mobile {
+  background: #f6f0e5;
+  color: #96723e;
+}
+
+.transaction-time {
+  color: #929c96;
+  font-size: 9px;
+}
+
+.transaction-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 8px;
+  font-weight: 650;
+}
+
+.transaction-status span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.status-completed {
+  color: #3e7959;
+}
+
+.status-completed span {
+  background: #5a9a75;
+}
+
+.status-refunded {
+  color: #b06c57;
+}
+
+.status-refunded span {
+  background: #cf7862;
+}
+
+
+/* TOP PRODUCTS */
+
+.products-panel {
+  padding: 21px;
+}
+
+.top-products {
+  margin-top: 18px;
+}
+
+.top-product {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 12px 0;
+  border-bottom: 1px solid #edf0ed;
+}
+
+.top-product:last-child {
+  border-bottom: none;
+}
+
+.product-rank {
+  width: 29px;
+  height: 29px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f0f4f1;
+  color: #6a8276;
+  font-size: 9px;
+  font-weight: 750;
+}
+
+.top-product-info {
+  min-width: 0;
+  flex: 1;
+}
+
+.top-product-info strong {
+  display: block;
+  overflow: hidden;
+  color: #40534a;
+  font-size: 10px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.top-product-info span {
+  display: block;
+  margin-top: 3px;
+  color: #9da6a0;
+  font-size: 8px;
+}
+
+.top-product-revenue {
+  color: #356449;
+  font-size: 9px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.view-products-button {
+  width: 100%;
+  height: 38px;
+  margin-top: 14px;
+  border: 1px solid #e3e9e4;
+  border-radius: 9px;
+  background: #f8faf8;
+  color: #46715a;
+  font-size: 10px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.view-products-button span {
+  margin-left: 8px;
+  font-size: 14px;
+}
+
+
+/* RESPONSIVE */
+
+@media (max-width: 1200px) {
+  .reports-main-grid,
+  .reports-lower-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1000px) {
+  .reports-summary {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .reports-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 700px) {
+  .reports-page {
+    padding: 18px;
+  }
+
+  .reports-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .reports-header-actions {
+    width: 100%;
+  }
+
+  .reports-period,
+  .reports-print-btn {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .reports-panel-header {
+    flex-direction: column;
+  }
+
+  .chart-total {
+    text-align: left;
+  }
+
+  .transaction-actions {
+    width: 100%;
+  }
+
+  .transaction-actions select,
+  .transaction-actions button {
+    flex: 1;
+  }
+}
+
+@media (max-width: 480px) {
+  .reports-header h1 {
+    font-size: 25px;
+  }
+
+  .reports-header-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .reports-period,
+  .reports-print-btn {
+    width: 100%;
+  }
+
+  .sales-chart-panel,
+  .channel-panel,
+  .products-panel {
+    padding: 16px;
+  }
+
+  .report-stat-value {
+    font-size: 22px;
+  }
+}
+
+
+/* PRINT */
+
+@media print {
+  .reports-page {
+    padding: 0;
+    background: #fff;
+  }
+
+  .reports-header-actions,
+  .transaction-actions,
+  .view-products-button {
+    display: none;
+  }
+
+  .reports-panel,
+  .report-stat-card {
+    box-shadow: none;
+  }
+}

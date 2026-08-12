@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Till — Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F6F3EC;
+    --paper-raised:#FFFFFF;
+    --ink:#1B211F;
+    --ink-soft:#5B655F;
+    --teal:#0F4C4A;
+    --teal-dark:#0A3634;
+    --teal-tint:#E4EEEC;
+    --amber:#E2A33B;
+    --amber-tint:#FBF0DC;
+    --brick:#B8503D;
+    --brick-tint:#F7E6E2;
+    --sage:#4C7A62;
+    --sage-tint:#E7EFEA;
+    --line:#DFD8C8;
+    --radius:14px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Inter',sans-serif;
+    -webkit-font-smoothing:antialiased;
+    display:flex;
+    min-height:100vh;
+  }
+  .mono{font-family:'IBM Plex Mono',monospace;}
+  .display{font-family:'Space Grotesk',sans-serif;}
+
+  /* ---------- Sidebar ---------- */
+  .sidebar{
+    width:236px;
+    background:var(--teal-dark);
+    color:var(--paper);
+    display:flex;
+    flex-direction:column;
+    padding:28px 18px;
+    flex-shrink:0;
+    position:sticky;
+    top:0;
+    height:100vh;
+  }
+  .brand{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:0 8px 28px 8px;
+  }
+  .brand-mark{
+    width:34px;height:34px;
+    border-radius:8px;
+    background:var(--amber);
+    display:flex;align-items:center;justify-content:center;
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:700;
+    color:var(--teal-dark);
+    font-size:16px;
+  }
+  .brand-name{
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:600;
+    font-size:17px;
+    letter-spacing:-0.01em;
+  }
+  .brand-sub{
+    font-size:11px;
+    color:rgba(246,243,236,0.55);
+    letter-spacing:0.04em;
+    text-transform:uppercase;
+  }
+  nav{margin-top:8px; display:flex; flex-direction:column; gap:2px;}
+  .nav-label{
+    font-size:10.5px;
+    letter-spacing:0.09em;
+    text-transform:uppercase;
+    color:rgba(246,243,236,0.4);
+    padding:16px 12px 6px 12px;
+  }
+  .nav-item{
+    display:flex;
+    align-items:center;
+    gap:11px;
+    padding:10px 12px;
+    border-radius:9px;
+    color:rgba(246,243,236,0.72);
+    text-decoration:none;
+    font-size:14px;
+    font-weight:500;
+    transition:background .15s ease, color .15s ease;
+  }
+  .nav-item svg{width:17px;height:17px; flex-shrink:0;}
+  .nav-item:hover{background:rgba(246,243,236,0.06); color:var(--paper);}
+  .nav-item.active{
+    background:rgba(226,163,59,0.16);
+    color:var(--amber);
+    font-weight:600;
+  }
+  .sidebar-foot{
+    margin-top:auto;
+    padding-top:18px;
+    border-top:1px solid rgba(246,243,236,0.12);
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .avatar{
+    width:32px;height:32px;border-radius:50%;
+    background:var(--amber);
+    display:flex;align-items:center;justify-content:center;
+    font-family:'Space Grotesk',sans-serif;font-weight:700;
+    color:var(--teal-dark); font-size:13px;
+  }
+  .foot-name{font-size:13px;font-weight:600;}
+  .foot-role{font-size:11.5px;color:rgba(246,243,236,0.5);}
+
+  /* ---------- Main ---------- */
+  .main{
+    flex:1;
+    padding:26px 36px 48px 36px;
+    min-width:0;
+  }
+  .topbar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:26px;
+    gap:20px;
+  }
+  .greeting-eyebrow{
+    font-size:12px;
+    color:var(--ink-soft);
+    font-family:'IBM Plex Mono',monospace;
+  }
+  .greeting{
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:600;
+    font-size:24px;
+    letter-spacing:-0.01em;
+  }
+  .topbar-right{display:flex; align-items:center; gap:12px;}
+  .search{
+    display:flex;align-items:center;gap:8px;
+    background:var(--paper-raised);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:9px 14px;
+    width:240px;
+    color:var(--ink-soft);
+    font-size:13.5px;
+  }
+  .search svg{width:15px;height:15px; flex-shrink:0;}
+  .icon-btn{
+    width:38px;height:38px;
+    border-radius:10px;
+    border:1px solid var(--line);
+    background:var(--paper-raised);
+    display:flex;align-items:center;justify-content:center;
+    color:var(--ink);
+    position:relative;
+    cursor:pointer;
+  }
+  .icon-btn svg{width:17px;height:17px;}
+  .dot{
+    position:absolute; top:8px; right:8px;
+    width:7px;height:7px;border-radius:50%;
+    background:var(--brick);
+    border:1.5px solid var(--paper-raised);
+  }
+  .btn-primary{
+    display:flex; align-items:center; gap:8px;
+    background:var(--teal);
+    color:var(--paper);
+    border:none;
+    padding:10px 18px;
+    border-radius:10px;
+    font-family:'Inter',sans-serif;
+    font-weight:600;
+    font-size:13.5px;
+    cursor:pointer;
+    box-shadow:0 2px 0 var(--teal-dark);
+  }
+  .btn-primary svg{width:15px;height:15px;}
+
+  /* ---------- Stat cards ---------- */
+  .stat-row{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:16px;
+    margin-bottom:22px;
+  }
+  .stat-card{
+    background:var(--paper-raised);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:18px 20px;
+  }
+  .stat-top{display:flex; align-items:flex-start; justify-content:space-between;}
+  .stat-label{font-size:12.5px; color:var(--ink-soft); font-weight:500;}
+  .stat-badge{
+    font-size:11px;
+    font-weight:600;
+    padding:3px 8px;
+    border-radius:20px;
+    font-family:'IBM Plex Mono',monospace;
+  }
+  .badge-up{background:var(--sage-tint); color:var(--sage);}
+  .badge-down{background:var(--brick-tint); color:var(--brick);}
+  .stat-value{
+    font-family:'IBM Plex Mono',monospace;
+    font-weight:600;
+    font-size:26px;
+    margin-top:10px;
+    letter-spacing:-0.01em;
+  }
+  .stat-icon{
+    width:30px;height:30px;border-radius:8px;
+    display:flex;align-items:center;justify-content:center;
+    margin-bottom:8px;
+  }
+  .stat-icon svg{width:16px;height:16px;}
+
+  /* ---------- Content grid ---------- */
+  .content-grid{
+    display:grid;
+    grid-template-columns:1.6fr 1fr;
+    gap:18px;
+    align-items:start;
+  }
+  .panel{
+    background:var(--paper-raised);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:20px 22px;
+    margin-bottom:18px;
+  }
+  .panel-head{
+    display:flex;align-items:center;justify-content:space-between;
+    margin-bottom:16px;
+  }
+  .panel-title{
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:600;
+    font-size:15.5px;
+  }
+  .panel-link{
+    font-size:12.5px;
+    color:var(--teal);
+    font-weight:600;
+    text-decoration:none;
+  }
+
+  /* Chart */
+  .chart{
+    display:flex;
+    align-items:flex-end;
+    gap:14px;
+    height:150px;
+    padding-top:10px;
+  }
+  .bar-col{flex:1; display:flex; flex-direction:column; align-items:center; gap:8px; height:100%; justify-content:flex-end;}
+  .bar{
+    width:100%;
+    max-width:34px;
+    border-radius:6px 6px 3px 3px;
+    background:var(--teal-tint);
+    position:relative;
+  }
+  .bar.today{background:var(--amber);}
+  .bar-label{font-size:11px; color:var(--ink-soft); font-family:'IBM Plex Mono',monospace;}
+
+  /* Transactions table */
+  table{width:100%; border-collapse:collapse;}
+  th{
+    text-align:left;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:0.05em;
+    color:var(--ink-soft);
+    font-weight:600;
+    padding:0 8px 10px 8px;
+    border-bottom:1px solid var(--line);
+  }
+  td{
+    padding:12px 8px;
+    font-size:13.5px;
+    border-bottom:1px solid var(--line);
+  }
+  tr:last-child td{border-bottom:none;}
+  .txn-id{font-family:'IBM Plex Mono',monospace; color:var(--ink-soft); font-size:12.5px;}
+  .txn-amount{font-family:'IBM Plex Mono',monospace; font-weight:600;}
+  .pill{
+    display:inline-block;
+    font-size:11px;
+    font-weight:600;
+    padding:3px 9px;
+    border-radius:20px;
+  }
+  .pill-cash{background:var(--sage-tint); color:var(--sage);}
+  .pill-card{background:var(--teal-tint); color:var(--teal);}
+  .pill-mobile{background:var(--amber-tint); color:#9C7522;}
+
+  /* ---------- Receipt signature card ---------- */
+  .receipt{
+    background:var(--paper-raised);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:22px 22px 18px 22px;
+    margin-bottom:18px;
+    position:relative;
+    background-image:
+      radial-gradient(circle at 0 100%, transparent 8px, var(--paper-raised) 8px),
+      radial-gradient(circle at 100% 100%, transparent 8px, var(--paper-raised) 8px);
+  }
+  .receipt::after{
+    content:"";
+    position:absolute;
+    left:14px; right:14px; bottom:6px;
+    height:0;
+    border-bottom:1.5px dashed var(--line);
+  }
+  .receipt-head{
+    text-align:center;
+    margin-bottom:14px;
+  }
+  .receipt-eyebrow{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    letter-spacing:0.08em;
+    color:var(--ink-soft);
+    text-transform:uppercase;
+  }
+  .receipt-title{
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:700;
+    font-size:19px;
+    margin-top:2px;
+  }
+  .receipt-line{
+    display:flex;
+    justify-content:space-between;
+    padding:7px 0;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:13px;
+    border-bottom:1px dotted var(--line);
+  }
+  .receipt-line span:first-child{color:var(--ink-soft);}
+  .receipt-line span:last-child{font-weight:600;}
+  .receipt-total{
+    display:flex;justify-content:space-between;
+    padding-top:12px;
+    margin-top:4px;
+    font-family:'IBM Plex Mono',monospace;
+  }
+  .receipt-total span:first-child{font-weight:600; font-size:13.5px;}
+  .receipt-total span:last-child{font-weight:700; font-size:20px; color:var(--teal);}
+
+  /* Low stock */
+  .stock-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:10px 0;
+    border-bottom:1px solid var(--line);
+  }
+  .stock-row:last-child{border-bottom:none; padding-bottom:0;}
+  .stock-name{font-size:13.5px; font-weight:500;}
+  .stock-sku{font-size:11.5px; color:var(--ink-soft); font-family:'IBM Plex Mono',monospace;}
+  .stock-qty{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12.5px;
+    font-weight:600;
+    padding:3px 9px;
+    border-radius:20px;
+    background:var(--brick-tint);
+    color:var(--brick);
+  }
+
+  /* Quick actions */
+  .quick-actions{display:flex; flex-direction:column; gap:8px;}
+  .qa-btn{
+    display:flex; align-items:center; gap:10px;
+    padding:11px 12px;
+    border-radius:10px;
+    border:1px solid var(--line);
+    background:var(--paper);
+    font-size:13.5px;
+    font-weight:600;
+    color:var(--ink);
+    cursor:pointer;
+    text-align:left;
+  }
+  .qa-btn svg{width:16px;height:16px; color:var(--teal);}
+  .qa-btn:hover{border-color:var(--teal);}
+
+  @media (max-width:1100px){
+    .content-grid{grid-template-columns:1fr;}
+    .stat-row{grid-template-columns:repeat(2,1fr);}
+  }
+  @media (max-width:720px){
+    .sidebar{display:none;}
+    .main{padding:20px;}
+    .stat-row{grid-template-columns:1fr 1fr;}
+    .search{display:none;}
+  }
+</style>
+</head>
+<body>
+
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">T</div>
+      <div>
+        <div class="brand-name">Till</div>
+        <div class="brand-sub">Point of Sale</div>
+      </div>
+    </div>
+
+    <nav>
+      <div class="nav-label">Overview</div>
+      <a class="nav-item active" href="#">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+        Dashboard
+      </a>
+      <div class="nav-label">Operate</div>
+      <a class="nav-item" href="#">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1.5"/><circle cx="18" cy="21" r="1.5"/><path d="M2 3h2l2.4 12.2a2 2 0 0 0 2 1.6h8.7a2 2 0 0 0 2-1.6L21 7H6"/></svg>
+        New Sale
+      </a>
+      <a class="nav-item" href="#">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v16"/></svg>
+        Products
+      </a>
+      <a class="nav-item" href="#">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v2m18 0v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8m18 0H3m4 4h4"/></svg>
+        Inventory
+      </a>
+      <div class="nav-label">Insights</div>
+      <a class="nav-item" href="#">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M18 17V9M13 17V5M8 17v-4"/></svg>
+        Reports
+      </a>
+      <a class="nav-item" href="#">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+        Sales History
+      </a>
+      <div class="nav-label">System</div>
+      <a class="nav-item" href="#">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+        Settings
+      </a>
+    </nav>
+
+    <div class="sidebar-foot">
+      <div class="avatar">MA</div>
+      <div>
+        <div class="foot-name">Maya Antwi</div>
+        <div class="foot-role">Cashier · Till 02</div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+
+    <div class="topbar">
+      <div>
+        <div class="greeting-eyebrow">TUE, AUG 11 · TILL 02 OPEN</div>
+        <div class="greeting">Good afternoon, Maya</div>
+      </div>
+      <div class="topbar-right">
+        <div class="search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          Search products, orders…
+        </div>
+        <div class="icon-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+          <span class="dot"></span>
+        </div>
+        <button class="btn-primary">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          New Sale
+        </button>
+      </div>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat-card">
+        <div class="stat-icon" style="background:var(--sage-tint); color:var(--sage);">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        </div>
+        <div class="stat-top">
+          <div class="stat-label">Today's Sales</div>
+          <div class="stat-badge badge-up">+12.4%</div>
+        </div>
+        <div class="stat-value">GH₵ 4,286</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon" style="background:var(--teal-tint); color:var(--teal);">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1.5"/><circle cx="18" cy="21" r="1.5"/><path d="M2 3h2l2.4 12.2a2 2 0 0 0 2 1.6h8.7a2 2 0 0 0 2-1.6L21 7H6"/></svg>
+        </div>
+        <div class="stat-top">
+          <div class="stat-label">Transactions</div>
+          <div class="stat-badge badge-up">+8</div>
+        </div>
+        <div class="stat-value">67</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon" style="background:var(--amber-tint); color:#9C7522;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-4 4"/></svg>
+        </div>
+        <div class="stat-top">
+          <div class="stat-label">Avg. Sale</div>
+          <div class="stat-badge badge-down">-2.1%</div>
+        </div>
+        <div class="stat-value">GH₵ 63.90</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon" style="background:var(--brick-tint); color:var(--brick);">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v2m18 0v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8m18 0H3m4 4h4"/></svg>
+        </div>
+        <div class="stat-top">
+          <div class="stat-label">Low Stock Items</div>
+          <div class="stat-badge badge-down">4 items</div>
+        </div>
+        <div class="stat-value">4</div>
+      </div>
+    </div>
+
+    <div class="content-grid">
+      <div>
+        <div class="panel">
+          <div class="panel-head">
+            <div class="panel-title">Sales this week</div>
+            <a class="panel-link" href="#">View report →</a>
+          </div>
+          <div class="chart">
+            <div class="bar-col"><div class="bar" style="height:52%;"></div><div class="bar-label">MON</div></div>
+            <div class="bar-col"><div class="bar" style="height:68%;"></div><div class="bar-label">TUE</div></div>
+            <div class="bar-col"><div class="bar" style="height:44%;"></div><div class="bar-label">WED</div></div>
+            <div class="bar-col"><div class="bar" style="height:79%;"></div><div class="bar-label">THU</div></div>
+            <div class="bar-col"><div class="bar" style="height:61%;"></div><div class="bar-label">FRI</div></div>
+            <div class="bar-col"><div class="bar" style="height:35%;"></div><div class="bar-label">SAT</div></div>
+            <div class="bar-col"><div class="bar today" style="height:88%;"></div><div class="bar-label">TODAY</div></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <div class="panel-title">Recent transactions</div>
+            <a class="panel-link" href="#">View all →</a>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Order</th>
+                <th>Cashier</th>
+                <th>Payment</th>
+                <th>Time</th>
+                <th style="text-align:right;">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="txn-id">#0241</td>
+                <td>Maya A.</td>
+                <td><span class="pill pill-card">Card</span></td>
+                <td>2:14 PM</td>
+                <td class="txn-amount" style="text-align:right;">GH₵ 148.00</td>
+              </tr>
+              <tr>
+                <td class="txn-id">#0240</td>
+                <td>Kojo B.</td>
+                <td><span class="pill pill-cash">Cash</span></td>
+                <td>1:52 PM</td>
+                <td class="txn-amount" style="text-align:right;">GH₵ 32.50</td>
+              </tr>
+              <tr>
+                <td class="txn-id">#0239</td>
+                <td>Maya A.</td>
+                <td><span class="pill pill-mobile">Mobile</span></td>
+                <td>1:38 PM</td>
+                <td class="txn-amount" style="text-align:right;">GH₵ 91.20</td>
+              </tr>
+              <tr>
+                <td class="txn-id">#0238</td>
+                <td>Kojo B.</td>
+                <td><span class="pill pill-cash">Cash</span></td>
+                <td>1:05 PM</td>
+                <td class="txn-amount" style="text-align:right;">GH₵ 15.00</td>
+              </tr>
+              <tr>
+                <td class="txn-id">#0237</td>
+                <td>Maya A.</td>
+                <td><span class="pill pill-card">Card</span></td>
+                <td>12:47 PM</td>
+                <td class="txn-amount" style="text-align:right;">GH₵ 210.75</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div>
+        <div class="receipt">
+          <div class="receipt-head">
+            <div class="receipt-eyebrow">Today's Till</div>
+            <div class="receipt-title">Summary · Till 02</div>
+          </div>
+          <div class="receipt-line"><span>Cash sales</span><span>GH₵ 1,410.00</span></div>
+          <div class="receipt-line"><span>Card sales</span><span>GH₵ 2,106.00</span></div>
+          <div class="receipt-line"><span>Mobile money</span><span>GH₵ 770.00</span></div>
+          <div class="receipt-line"><span>Discounts given</span><span>−GH₵ 84.50</span></div>
+          <div class="receipt-line"><span>Items sold</span><span>163</span></div>
+          <div class="receipt-total"><span>Net total</span><span>GH₵ 4,286</span></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <div class="panel-title">Low stock alerts</div>
+            <a class="panel-link" href="#">Restock →</a>
+          </div>
+          <div class="stock-row">
+            <div>
+              <div class="stock-name">Bottled Water 500ml</div>
+              <div class="stock-sku">SKU-1042</div>
+            </div>
+            <div class="stock-qty">3 left</div>
+          </div>
+          <div class="stock-row">
+            <div>
+              <div class="stock-name">Jollof Rice (large)</div>
+              <div class="stock-sku">SKU-2071</div>
+            </div>
+            <div class="stock-qty">5 left</div>
+          </div>
+          <div class="stock-row">
+            <div>
+              <div class="stock-name">Malt Drink Can</div>
+              <div class="stock-sku">SKU-1188</div>
+            </div>
+            <div class="stock-qty">6 left</div>
+          </div>
+          <div class="stock-row">
+            <div>
+              <div class="stock-name">Meat Pie</div>
+              <div class="stock-sku">SKU-3009</div>
+            </div>
+            <div class="stock-qty">2 left</div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <div class="panel-title">Quick actions</div>
+          </div>
+          <div class="quick-actions">
+            <button class="qa-btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v16"/></svg>
+              Add new product
+            </button>
+            <button class="qa-btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v2m18 0v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8m18 0H3m4 4h4"/></svg>
+              Adjust stock
+            </button>
+            <button class="qa-btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M18 17V9M13 17V5M8 17v-4"/></svg>
+              Export today's report
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+</body>
+</html>
