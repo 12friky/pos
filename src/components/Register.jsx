@@ -5,7 +5,7 @@ import '../styles/register.css';
 
 export default function Register({ onLogin }) {
   const navigate = useNavigate();
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
+  const API_URL = import.meta.env.VITE_API_URL;
   const [step, setStep] = useState(1);
   const [isVisible, setIsVisible] = useState(false);
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
@@ -183,7 +183,7 @@ export default function Register({ onLogin }) {
       registrationData.append('phone', form.phone);
       if (logoFile) registrationData.append('logo', logoFile);
 
-      const response = await fetch(API_URL + '/auth/register', {
+      const response = await fetch(API_URL + '/api/auth/register', {
         method: 'POST',
         body: registrationData,
       });
