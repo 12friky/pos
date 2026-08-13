@@ -42,7 +42,7 @@ function App() {
       const token = localStorage.getItem('posToken')
       if (!token) return
       try {
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
         if (!response.ok) return
         const { user } = await response.json()
         localStorage.setItem('posUser', JSON.stringify(user))

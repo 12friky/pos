@@ -30,8 +30,8 @@ export default function NewSale({ user }) {
       try {
         const token = localStorage.getItem('posToken')
         const [productsRes, salesRes] = await Promise.all([
-          fetch(`${import.meta.env.VITE_API_URL}/products`),
-          fetch(`${import.meta.env.VITE_API_URL}/sales?limit=50`, {
+          fetch(`${import.meta.env.VITE_API_URL}/api/products`),
+          fetch(`${import.meta.env.VITE_API_URL}/api/sales?limit=50`, {
             headers: token ? { Authorization: `Bearer ${token}` } : {},
           }),
         ])
@@ -222,7 +222,7 @@ export default function NewSale({ user }) {
     }
 
     try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/sales`, {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/sales`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -257,7 +257,7 @@ export default function NewSale({ user }) {
         })
 
         // refresh products and normalize ids
-        const pRes = await fetch(`${import.meta.env.VITE_API_URL}/products`)
+        const pRes = await fetch(`${import.meta.env.VITE_API_URL}/api/products`)
         if (pRes.ok) {
           const pData = await pRes.json()
           const normalized = pData.map((p) => ({ ...p, id: p._id || p.id }))

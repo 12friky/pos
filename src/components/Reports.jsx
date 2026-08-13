@@ -151,8 +151,8 @@ export default function Reports() {
       try {
         const token = localStorage.getItem('posToken')
         const [salesResponse, productsResponse] = await Promise.all([
-          fetch(`${import.meta.env.VITE_API_URL}/sales?limit=500`, { headers: token ? { Authorization: `Bearer ${token}` } : {} }),
-          fetch(`${import.meta.env.VITE_API_URL}/products`),
+          fetch(`${import.meta.env.VITE_API_URL}/api/sales?limit=500`, { headers: token ? { Authorization: `Bearer ${token}` } : {} }),
+          fetch(`${import.meta.env.VITE_API_URL}/api/products`),
         ])
         if (salesResponse.ok) setSales(await salesResponse.json())
         if (productsResponse.ok) setProducts(await productsResponse.json())

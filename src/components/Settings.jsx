@@ -18,7 +18,7 @@ export default function Settings({ onUserUpdated }) {
     const loadSettings = async () => {
       try {
         const token = localStorage.getItem('posToken')
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/me`, {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/me`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         })
         if (!response.ok) throw new Error('Unable to load settings')
@@ -45,7 +45,7 @@ export default function Settings({ onUserUpdated }) {
       const data = new FormData()
       ;['name', 'businessName', 'businessType', 'category', 'businessPhone', 'location', 'phone'].forEach((field) => data.append(field, form[field] || ''))
       if (logo) data.append('logo', logo)
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/me`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/me`, {
         method: 'PUT', headers: token ? { Authorization: `Bearer ${token}` } : {}, body: data,
       })
       const body = await response.json().catch(() => ({}))

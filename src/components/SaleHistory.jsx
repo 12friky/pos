@@ -102,7 +102,7 @@ export default function SaleHistory() {
     const loadSales = async () => {
       try {
         const token = localStorage.getItem('posToken')
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/sales?limit=500`, {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/sales?limit=500`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         })
         if (!response.ok) throw new Error('Unable to load sales')

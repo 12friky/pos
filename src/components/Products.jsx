@@ -34,7 +34,7 @@ export default function Products() {
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/products`)
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/products`)
         if (!res.ok) throw new Error('Failed to fetch')
         const data = await res.json()
         // normalize id field to ease frontend usage (backend returns _id)
@@ -155,7 +155,7 @@ export default function Products() {
     }
     try {
       const token = localStorage.getItem('posToken')
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/products/${product.id}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/products/${product.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ stock: Number(product.stock || 0) + quantity }),
@@ -211,8 +211,8 @@ export default function Products() {
       try {
         let res
         const endpoint = drawerMode === 'edit' && activeProduct
-          ? `${import.meta.env.VITE_API_URL}/products/${activeProduct.id}`
-          : `${import.meta.env.VITE_API_URL}/products`
+          ? `${import.meta.env.VITE_API_URL}/api/products/${activeProduct.id}`
+          : `${import.meta.env.VITE_API_URL}/api/products`
         const method = drawerMode === 'edit' ? 'PATCH' : 'POST'
         if (formProduct.imageFile) {
           const fd = new FormData()
