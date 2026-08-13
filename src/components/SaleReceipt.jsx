@@ -13,11 +13,18 @@ export default function SaleReceipt({ receipt, onNewSale }) {
 
   if (!isValidReceipt) return null
 
+  const logo = receipt.businessLogoUrl
+  const logoSrc = logo && (String(logo).startsWith('http') || String(logo).startsWith('data:')) ? logo : (logo ? `${import.meta.env.VITE_API_URL}${logo}` : null)
+  const businessName = receipt.businessName || 'Till POS Store'
+
   return (
     <div className="receipt-modal" role="dialog" aria-modal="true" aria-labelledby="receipt-title">
       <div className="receipt-paper">
-        <header className="receipt-store">
-          <h1 id="receipt-title">Till POS Store</h1>
+        <header className="receipt-store" style={{ textAlign: 'center' }}>
+          {logoSrc ? (
+            <img src={logoSrc} alt={businessName} style={{ width: 88, height: 88, objectFit: 'contain', margin: '0 auto', borderRadius: 12 }} />
+          ) : null}
+          <h1 id="receipt-title" style={{ marginTop: 8 }}>{businessName}</h1>
           <p>12 Market Street, Accra</p>
           <p>Phone: +233 30 123 4567</p>
           <strong>SALE RECEIPT</strong>

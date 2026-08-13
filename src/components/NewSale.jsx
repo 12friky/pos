@@ -1,76 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import '../styles/newsale.css'
 import { useNavigate } from 'react-router-dom'
 import SaleReceipt from './SaleReceipt'
 
-const PRODUCTS = [
-  {
-    id: 1,
-    name: 'Bottled Water 500ml',
-    price: 2.5,
-    stock: 18,
-    category: 'Drinks',
-    sku: 'SKU-1042',
-  },
-  {
-    id: 2,
-    name: 'Jollof Rice',
-    price: 18,
-    stock: 12,
-    category: 'Food',
-    sku: 'SKU-2071',
-  },
-  {
-    id: 3,
-    name: 'Malt Drink Can',
-    price: 6,
-    stock: 6,
-    category: 'Drinks',
-    sku: 'SKU-1188',
-  },
-  {
-    id: 4,
-    name: 'Meat Pie',
-    price: 4,
-    stock: 2,
-    category: 'Snacks',
-    sku: 'SKU-3009',
-  },
-  {
-    id: 5,
-    name: 'Bread',
-    price: 8,
-    stock: 15,
-    category: 'Food',
-    sku: 'SKU-3010',
-  },
-  {
-    id: 6,
-    name: 'Soda',
-    price: 5,
-    stock: 20,
-    category: 'Drinks',
-    sku: 'SKU-3011',
-  },
-  {
-    id: 7,
-    name: 'Fried Rice',
-    price: 20,
-    stock: 9,
-    category: 'Food',
-    sku: 'SKU-3012',
-  },
-  {
-    id: 8,
-    name: 'Chicken Wings',
-    price: 25,
-    stock: 7,
-    category: 'Food',
-    sku: 'SKU-3013',
-  },
-]
+// products loaded from backend
 
-export default function NewSale() {
+export default function NewSale({ user }) {
   const navigate = useNavigate()
 
   const [search, setSearch] = useState('')
@@ -84,35 +19,67 @@ export default function NewSale() {
   const [customer, setCustomer] = useState('Walk-in customer')
   const [heldSale, setHeldSale] = useState(false)
 
-  
+  const [products, setProducts] = useState([])
+  const [recentSales, setRecentSales] = useState([])
+  const [recentSalesLoading, setRecentSalesLoading] = useState(true)
 
-  const [cart, setCart] = useState([
-    {
-      ...PRODUCTS[2],
-      quantity: 1,
-    },
-  ])
+  const [cart, setCart] = useState([])
 
-  const categories = ['All', 'Food', 'Drinks', 'Snacks']
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const token = localStorage.getItem('posToken')
+        const [productsRes, salesRes] = await Promise.all([
+          fetch(`${import.meta.env.VITE_API_URL}/products`),
+          fetch(`${import.meta.env.VITE_API_URL}/sales?limit=50`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          }),
+        ])
+        if (!productsRes.ok) throw new Error('Failed to load products')
+        setProducts(await productsRes.json())
+        if (salesRes.ok) setRecentSales(await salesRes.json())
+      } catch (err) {
+        console.error('NewSale: could not fetch products', err)
+        setProducts([])
+      } finally {
+        setRecentSalesLoading(false)
+      }
+    }
+
+    load()
+  }, [])
+
+  const categories = ['All', ...Array.from(new Set(products.map((p) => p.category).filter(Boolean)))]
 
   const filteredProducts = useMemo(() => {
     const searchValue = search.toLowerCase().trim()
 
-    if (!searchValue) {
-      return []
-    }
+    if (!searchValue) return []
 
-    return PRODUCTS.filter((product) => {
-      const matchesSearch =
-        product.name.toLowerCase().includes(searchValue) ||
-        product.sku.toLowerCase().includes(searchValue)
-
-      const matchesCategory =
-        category === 'All' || product.category === category
-
+    return products.filter((product) => {
+      const name = (product.name || '').toLowerCase()
+      const sku = (product.sku || '').toLowerCase()
+      const matchesSearch = name.includes(searchValue) || sku.includes(searchValue)
+      const matchesCategory = category === 'All' || product.category === category
       return matchesSearch && matchesCategory
     })
-  }, [search, category])
+  }, [search, category, products])
+
+  const recentlySoldProducts = useMemo(() => {
+    const currentProducts = new Map(products.map((product) => [String(product._id || product.id), product]))
+    const seen = new Set()
+    const result = []
+
+    recentSales.forEach((sale) => sale.items.forEach((item) => {
+      const product = currentProducts.get(String(item.product))
+      const key = String(item.product || item.sku || item.name)
+      if (!product || seen.has(key) || result.length === 3) return
+      seen.add(key)
+      result.push(product)
+    }))
+
+    return result
+  }, [recentSales, products])
 
   const subtotal = cart.reduce(
     (total, item) => total + item.price * item.quantity,
@@ -134,23 +101,16 @@ export default function NewSale() {
   }
 
   function addToCart(product) {
-    if (!product || product.stock <= 0) return
+    if (!product || (product.stock || 0) <= 0) return
 
     setCart((currentCart) => {
-      const existing = currentCart.find(
-        (item) => item.id === product.id
-      )
+      const pid = product._id || product.id
+      const existing = currentCart.find((item) => item.id === pid)
 
       if (existing) {
         return currentCart.map((item) =>
-          item.id === product.id
-            ? {
-                ...item,
-                quantity: Math.min(
-                  item.quantity + 1,
-                  product.stock
-                ),
-              }
+          item.id === pid
+            ? { ...item, quantity: Math.min(item.quantity + 1, product.stock || 0) }
             : item
         )
       }
@@ -158,7 +118,11 @@ export default function NewSale() {
       return [
         ...currentCart,
         {
-          ...product,
+          id: pid,
+          name: product.name,
+          sku: product.sku,
+          price: product.price,
+          stock: product.stock,
           quantity: 1,
         },
       ]
@@ -174,10 +138,7 @@ export default function NewSale() {
 
         return {
           ...item,
-          quantity: Math.min(
-            item.quantity + 1,
-            item.stock
-          ),
+          quantity: Math.min(item.quantity + 1, item.stock || 0),
         }
       })
     )
@@ -211,7 +172,7 @@ export default function NewSale() {
     setCashError('')
   }
 
-  function handleCompleteSale(isConfirmed = false) {
+  async function handleCompleteSale(isConfirmed = false) {
     if (!cart.length) {
       alert(
         'Add at least one product before completing the sale.'
@@ -236,37 +197,81 @@ export default function NewSale() {
       return
     }
 
-    /*
-      `Confirm this sale for GH₵ ${total.toFixed(2)} using ${payment}?`
-    )
-    */
-
     const now = new Date()
-    setReceipt({
-      orderNumber: `POS-${now.valueOf().toString().slice(-8)}`,
-      customer,
-      date: now.toLocaleDateString(),
-      time: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      cashier: 'Maya Antwi',
-      register: 'Till 02',
-      payment,
-      items: cart.map((item) => ({ ...item })),
+
+    const salePayload = {
+      items: cart.map((item) => ({
+        product: item.id,
+        name: item.name,
+        sku: item.sku,
+        unitPrice: item.price,
+        quantity: item.quantity,
+      })),
       subtotal,
       discount: discountAmount,
       total,
-      received: payment === 'Cash' ? receivedAmount : total,
-      change: payment === 'Cash' ? cashBalance : 0,
-    })
-    /*
-      `Sale completed\nTotal: GH₵ ${total.toFixed(
-        2
-      )}\nPayment: ${payment}`
-    */
+      paymentMethod: payment,
+      customer,
+    }
 
-    setCart([])
-    setDiscount(0)
-    setCustomer('Walk-in customer')
-  }
+    const token = localStorage.getItem('posToken')
+
+    if (!token) {
+      alert('You must be logged in to complete a sale. Please log in first.')
+      return
+    }
+
+    try {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/sales`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify(salePayload),
+        })
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}))
+          throw new Error(err.message || 'Failed to create sale')
+        }
+
+        const createdSale = await res.json()
+
+        setReceipt({
+          orderNumber: `POS-${(createdSale._id || now.valueOf()).toString().slice(-8).toUpperCase()}`,
+          customer,
+          date: now.toLocaleDateString(),
+          time: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          cashier: (user && user.name) ? user.name : 'Cashier',
+          businessName: (user && user.businessName) ? user.businessName : undefined,
+          businessLogoUrl: (user && user.businessLogoUrl) ? user.businessLogoUrl : undefined,
+          register: 'Till 02',
+          payment,
+          items: cart.map((item) => ({ ...item })),
+          subtotal,
+          discount: discountAmount,
+          total,
+          received: payment === 'Cash' ? receivedAmount : total,
+          change: payment === 'Cash' ? cashBalance : 0,
+        })
+
+        // refresh products and normalize ids
+        const pRes = await fetch(`${import.meta.env.VITE_API_URL}/products`)
+        if (pRes.ok) {
+          const pData = await pRes.json()
+          const normalized = pData.map((p) => ({ ...p, id: p._id || p.id }))
+          setProducts(normalized)
+        }
+
+        setCart([])
+        setDiscount(0)
+        setCustomer('Walk-in customer')
+      } catch (err) {
+        console.error('Sale create error:', err)
+        alert(err.message || 'Unable to complete sale')
+      }
+    }
 
   function startNewSale() {
     setReceipt(null)
@@ -314,7 +319,7 @@ export default function NewSale() {
 
               <button
                 className="outline-btn"
-                onClick={() => navigate('/dashboard')}
+                onClick={() => navigate('/')}
               >
                 Exit sale
               </button>
@@ -426,10 +431,10 @@ export default function NewSale() {
                       ) : (
                         filteredProducts.map((product) => (
                           <button
-                            key={product.id}
+                            key={product._id || product.id}
                             className="product-search-item"
                             type="button"
-                            disabled={product.stock === 0}
+                            disabled={(product.stock || 0) === 0}
                             onClick={() => addToCart(product)}
                           >
                             <div>
@@ -437,11 +442,11 @@ export default function NewSale() {
                                 {product.name}
                               </div>
                               <div className="product-search-meta">
-                                {product.sku} · GH₵ {product.price.toFixed(2)} · {product.stock} in stock
+                                {product.sku} · GH₵ {Number(product.price || 0).toFixed(2)} · {(product.stock || 0)} in stock
                               </div>
                             </div>
                             <span className="product-search-action">
-                              {product.stock === 0 ? 'Out of stock' : 'Add'}
+                              {(product.stock || 0) === 0 ? 'Out of stock' : 'Add'}
                             </span>
                           </button>
                         ))
@@ -471,6 +476,29 @@ export default function NewSale() {
                 </div>
 
                 <div className="recent-items">
+                  {recentSalesLoading ? (
+                    <div className="recent-row"><div className="recent-name">Loading recent sales…</div></div>
+                  ) : recentlySoldProducts.length === 0 ? (
+                    <div className="recent-row"><div className="recent-name">No sales recorded yet</div><div className="recent-sku">Completed sales will appear here.</div></div>
+                  ) : (
+                    recentlySoldProducts.map((product) => (
+                      <button
+                        className="recent-row"
+                        type="button"
+                        key={product._id || product.id}
+                        disabled={product.trackInventory && Number(product.stock || 0) <= 0}
+                        onClick={() => addToCart(product)}
+                        style={{ width: '100%', border: 0, textAlign: 'left', cursor: 'pointer' }}
+                      >
+                        <div>
+                          <div className="recent-name">{product.name}</div>
+                          <div className="recent-sku">{product.sku || 'No SKU'} · {Number(product.stock || 0)} in stock</div>
+                        </div>
+                        <div className="recent-price">GH₵ {Number(product.price || 0).toFixed(2)}</div>
+                      </button>
+                    ))
+                  )}
+                  {recentlySoldProducts.length === -1 && <>
 
                   <div className="recent-row">
 
@@ -526,6 +554,7 @@ export default function NewSale() {
 
                   </div>
 
+                  </>}
                 </div>
 
               </section>

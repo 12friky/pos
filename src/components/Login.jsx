@@ -7,41 +7,35 @@ export default function Login({ onLogin }) {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const [showSignup, setShowSignup] = useState(false)
-  const [signupData, setSignupData] = useState({
-    businessName: '',
-    ownerName: '',
-    email: '',
-    phone: '',
-    businessType: '',
-    category: '',
-    location: ''
-  })
-
   const navigate = useNavigate()
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
+    setLoading(true)
 
-    if (email === 'pos@gmail.com' && password === 'pos123') {
-      setLoading(true)
+    try {
+      const response = await fetch(`${API_URL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      })
+      const data = await response.json()
 
-      setTimeout(() => {
-        onLogin()
-        navigate('/', { replace: true })
-      }, 700)
+      if (!response.ok) {
+        setError(data.message || data.errors?.[0]?.msg || 'Incorrect email or password')
+        return
+      }
 
-      return
+      onLogin(data.token, data.user)
+      navigate('/', { replace: true })
+    } catch (err) {
+      console.error(err)
+      setError('Unable to login. Please try again.')
+    } finally {
+      setLoading(false)
     }
-
-    setError('Incorrect email or password')
-  }
-
-  const handleSignupSubmit = (e) => {
-    e.preventDefault()
-    console.log('Business registration:', signupData)
-    setShowSignup(false)
   }
 
   return (
@@ -132,9 +126,10 @@ export default function Login({ onLogin }) {
 
           <div className="signup-prompt">
             <span>Don't have an account?</span>
-            <button 
+            <button
+              type="button"
               className="signup-link"
-              onClick={() => setShowSignup(true)}
+              onClick={() => navigate('/register')}
             >
               Sign up
             </button>
@@ -169,135 +164,6 @@ export default function Login({ onLogin }) {
           </div>
         </section>
       </div>
-
-      {/* Business Registration Modal - Horizontal Layout */}
-      {showSignup && (
-        <div className="modal-overlay" onClick={() => setShowSignup(false)}>
-          <div className="business-modal" onClick={(e) => e.stopPropagation()}>
-            <button className="modal-close" onClick={() => setShowSignup(false)}>×</button>
-            
-            <div className="modal-header">
-              <div className="modal-icon">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/>
-                  <path d="M9 9h.01M9 12h.01M9 15h.01M9 18h.01M15 9h.01M15 12h.01M15 15h.01M15 18h.01"/>
-                </svg>
-              </div>
-              <div>
-                <h2>Business Registration</h2>
-                <p>Register your business to get started</p>
-              </div>
-            </div>
-
-            <form onSubmit={handleSignupSubmit} className="business-form">
-              <div className="form-row">
-                <div className="form-group">
-                  <label htmlFor="businessName">Business Name</label>
-                  <input
-                    id="businessName"
-                    type="text"
-                    placeholder="ABC Fashion Shop"
-                    value={signupData.businessName}
-                    onChange={(e) => setSignupData({...signupData, businessName: e.target.value})}
-                    required
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label htmlFor="ownerName">Owner Name</label>
-                  <input
-                    id="ownerName"
-                    type="text"
-                    placeholder="John Mensah"
-                    value={signupData.ownerName}
-                    onChange={(e) => setSignupData({...signupData, ownerName: e.target.value})}
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label htmlFor="regEmail">Email</label>
-                  <input
-                    id="regEmail"
-                    type="email"
-                    placeholder="john@example.com"
-                    value={signupData.email}
-                    onChange={(e) => setSignupData({...signupData, email: e.target.value})}
-                    required
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label htmlFor="phone">Phone</label>
-                  <input
-                    id="phone"
-                    type="tel"
-                    placeholder="024 XXX XXXX"
-                    value={signupData.phone}
-                    onChange={(e) => setSignupData({...signupData, phone: e.target.value})}
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label htmlFor="businessType">Business Type</label>
-                  <select
-                    id="businessType"
-                    value={signupData.businessType}
-                    onChange={(e) => setSignupData({...signupData, businessType: e.target.value})}
-                    required
-                  >
-                    <option value="">Select type</option>
-                    <option value="retail">Retail</option>
-                    <option value="wholesale">Wholesale</option>
-                    <option value="service">Service</option>
-                    <option value="manufacturing">Manufacturing</option>
-                  </select>
-                </div>
-
-                <div className="form-group">
-                  <label htmlFor="category">Category</label>
-                  <select
-                    id="category"
-                    value={signupData.category}
-                    onChange={(e) => setSignupData({...signupData, category: e.target.value})}
-                    required
-                  >
-                    <option value="">Select category</option>
-                    <option value="fashion">Fashion</option>
-                    <option value="electronics">Electronics</option>
-                    <option value="food">Food & Beverage</option>
-                    <option value="health">Health & Beauty</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="location">Location</label>
-                <input
-                  id="location"
-                  type="text"
-                  placeholder="Accra, Ghana"
-                  value={signupData.location}
-                  onChange={(e) => setSignupData({...signupData, location: e.target.value})}
-                  required
-                />
-              </div>
-
-              <button type="submit" className="business-submit">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M20 6L9 17l-5-5"/>
-                </svg>
-                Register Business
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
     </main>
   )
 }

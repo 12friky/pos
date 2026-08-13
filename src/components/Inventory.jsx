@@ -1,16 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import '../styles/inventory.css'
-
-const PRODUCTS = [
-  { id: 1, name: 'Bottled Water 500ml', sku: 'SKU-1042', category: 'Drinks', stock: 18, minStock: 8, cost: 1.5 },
-  { id: 2, name: 'Jollof Rice (Large)', sku: 'SKU-2071', category: 'Food', stock: 12, minStock: 5, cost: 11 },
-  { id: 3, name: 'Malt Drink Can', sku: 'SKU-1188', category: 'Drinks', stock: 6, minStock: 8, cost: 4 },
-  { id: 4, name: 'Meat Pie', sku: 'SKU-3009', category: 'Snacks', stock: 2, minStock: 6, cost: 2.5 },
-  { id: 5, name: 'Fresh Bread', sku: 'SKU-3010', category: 'Food', stock: 15, minStock: 5, cost: 5 },
-  { id: 6, name: 'Soda Can', sku: 'SKU-3011', category: 'Drinks', stock: 20, minStock: 8, cost: 3 },
-  { id: 7, name: 'Fried Rice', sku: 'SKU-3012', category: 'Food', stock: 9, minStock: 5, cost: 12 },
-  { id: 8, name: 'Chicken Wings', sku: 'SKU-3013', category: 'Food', stock: 7, minStock: 5, cost: 16 },
-]
 
 const stockStatus = (stock, minStock) => {
   if (stock === 0) {
@@ -55,13 +44,56 @@ export default function Inventory() {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('All')
   const [statusFilter, setStatusFilter] = useState('All')
+  const [products, setProducts] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [actionError, setActionError] = useState('')
 
-  const categories = ['All', ...new Set(PRODUCTS.map((item) => item.category))]
+  const loadProducts = async () => {
+    setLoading(true)
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/products`)
+      if (!response.ok) throw new Error('Unable to load inventory')
+      setProducts(await response.json())
+    } catch (error) {
+      console.error('Inventory:', error)
+      setProducts([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { loadProducts() }, [])
+
+  const restockProduct = async (product) => {
+    const amount = window.prompt(`Add stock for ${product.name}. Quantity to add:`, String(Math.max(Number(product.minStock) || 1, 1)))
+    if (amount === null) return
+    const quantity = Number(amount)
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      setActionError('Enter a restock quantity greater than zero.')
+      return
+    }
+    try {
+      const token = localStorage.getItem('posToken')
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/products/${product._id || product.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ stock: Number(product.stock || 0) + quantity }),
+      })
+      const updated = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(updated.message || 'Unable to restock product')
+      setProducts((current) => current.map((item) => (item._id || item.id) === (updated._id || updated.id) ? updated : item))
+      setActionError('')
+    } catch (error) {
+      setActionError(error.message || 'Unable to restock product')
+    }
+  }
+
+  const categories = ['All', ...new Set(products.map((item) => item.category).filter(Boolean))]
 
   const filteredProducts = useMemo(() => {
     const query = search.trim().toLowerCase()
 
-    return PRODUCTS.filter((product) => {
+    return products.filter((product) => {
       const matchesSearch =
         product.name.toLowerCase().includes(query) ||
         product.sku.toLowerCase().includes(query)
@@ -76,30 +108,30 @@ export default function Inventory() {
 
       return matchesSearch && matchesCategory && matchesStatus
     })
-  }, [search, filter, statusFilter])
+  }, [search, filter, statusFilter, products])
 
-  const totalSKUs = PRODUCTS.length
+  const totalSKUs = products.length
 
-  const lowStock = PRODUCTS.filter(
+  const lowStock = products.filter(
     (product) =>
       product.stock > 0 && product.stock <= product.minStock
   ).length
 
-  const outOfStock = PRODUCTS.filter(
+  const outOfStock = products.filter(
     (product) => product.stock === 0
   ).length
 
-  const totalUnits = PRODUCTS.reduce(
+  const totalUnits = products.reduce(
     (sum, product) => sum + product.stock,
     0
   )
 
-  const inventoryValue = PRODUCTS.reduce(
+  const inventoryValue = products.reduce(
     (sum, product) => sum + product.stock * product.cost,
     0
   )
 
-  const healthyStock = PRODUCTS.filter(
+  const healthyStock = products.filter(
     (product) => product.stock > product.minStock
   ).length
 
@@ -108,7 +140,7 @@ export default function Inventory() {
       ? Math.round((healthyStock / totalSKUs) * 100)
       : 0
 
-  const restockItems = PRODUCTS.filter(
+  const restockItems = products.filter(
     (item) => item.stock <= item.minStock
   )
 
@@ -158,6 +190,7 @@ export default function Inventory() {
               setSearch('')
               setFilter('All')
               setStatusFilter('All')
+              loadProducts()
             }}
           >
             <svg
@@ -185,6 +218,7 @@ export default function Inventory() {
 
 
       {/* SUMMARY CARDS */}
+      {actionError && <p style={{ color: '#a5332b', padding: '0 0 14px' }}>{actionError}</p>}
       <section className="inventory-stats">
 
         <div className="inventory-stat-card">
@@ -377,7 +411,7 @@ export default function Inventory() {
                   )
 
                   return (
-                    <tr key={product.id}>
+                    <tr key={product._id || product.id}>
 
                       <td>
 
@@ -466,6 +500,7 @@ export default function Inventory() {
                           className="inventory-more"
                           type="button"
                           title="Adjust stock"
+                          onClick={() => restockProduct(product)}
                         >
                           ⋮
                         </button>
@@ -480,7 +515,9 @@ export default function Inventory() {
 
             </table>
 
-            {filteredProducts.length === 0 && (
+            {loading ? (
+              <div className="inventory-empty"><h3>Loading inventory…</h3></div>
+            ) : filteredProducts.length === 0 && (
               <div className="inventory-empty">
                 <div className="empty-icon">⌕</div>
                 <h3>No products found</h3>
@@ -568,7 +605,7 @@ export default function Inventory() {
 
                   <div
                     className="restock-item"
-                    key={item.id}
+                    key={item._id || item.id}
                   >
 
                     <div className="restock-avatar">
@@ -590,6 +627,7 @@ export default function Inventory() {
                     <button
                       className="restock-button"
                       type="button"
+                      onClick={() => restockProduct(item)}
                     >
                       Restock
                     </button>

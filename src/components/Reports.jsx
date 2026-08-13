@@ -1,5 +1,5 @@
 /* eslint-disable no-unused-vars */
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import '../styles/report.css'
 
 const REPORTS = [
@@ -143,16 +143,85 @@ const formatMoney = (amount) =>
 export default function Reports() {
   const [period, setPeriod] = useState('This week')
   const [paymentFilter, setPaymentFilter] = useState('All')
+  const [sales, setSales] = useState([])
+  const [products, setProducts] = useState([])
+
+  useEffect(() => {
+    const loadReportData = async () => {
+      try {
+        const token = localStorage.getItem('posToken')
+        const [salesResponse, productsResponse] = await Promise.all([
+          fetch(`${import.meta.env.VITE_API_URL}/sales?limit=500`, { headers: token ? { Authorization: `Bearer ${token}` } : {} }),
+          fetch(`${import.meta.env.VITE_API_URL}/products`),
+        ])
+        if (salesResponse.ok) setSales(await salesResponse.json())
+        if (productsResponse.ok) setProducts(await productsResponse.json())
+      } catch (error) {
+        console.error('Reports:', error)
+      }
+    }
+    loadReportData()
+  }, [])
+
+  const periodStart = useMemo(() => {
+    const now = new Date()
+    const start = new Date(now)
+    if (period === 'This week') start.setDate(now.getDate() - 6)
+    if (period === 'This month') start.setMonth(now.getMonth() - 1)
+    if (period === 'This quarter') start.setMonth(now.getMonth() - 3)
+    if (period === 'This year') start.setFullYear(now.getFullYear() - 1)
+    return start
+  }, [period])
+  const periodSales = useMemo(() => sales.filter((sale) => new Date(sale.createdAt) >= periodStart), [sales, periodStart])
+  const totalRevenue = periodSales.reduce((sum, sale) => sum + (Number(sale.total) || 0), 0)
+  const productById = new Map(products.map((product) => [String(product._id || product.id), product]))
+  const totalCost = periodSales.reduce((sum, sale) => sum + sale.items.reduce((itemsTotal, item) => {
+    const product = productById.get(String(item.product))
+    return itemsTotal + (Number(product?.cost) || 0) * (Number(item.quantity) || 0)
+  }, 0), 0)
+  const totalDiscounts = periodSales.reduce((sum, sale) => sum + (Number(sale.discount) || 0), 0)
+  const REPORTS = [
+    { title: 'Total sales', value: formatMoney(totalRevenue), change: `${periodSales.length} sales`, type: 'up', description: `During ${period.toLowerCase()}` },
+    { title: 'Today’s sales', value: formatMoney(sales.filter((sale) => new Date(sale.createdAt).toDateString() === new Date().toDateString()).reduce((sum, sale) => sum + (Number(sale.total) || 0), 0)), change: 'Live', type: 'up', description: 'Completed today' },
+    { title: 'Gross profit', value: formatMoney(totalRevenue - totalCost), change: totalRevenue ? `${((totalRevenue - totalCost) / totalRevenue * 100).toFixed(1)}%` : '0.0%', type: 'up', description: 'Revenue less product cost' },
+    { title: 'Discounts', value: formatMoney(totalDiscounts), change: `${periodSales.filter((sale) => Number(sale.discount) > 0).length} sales`, type: 'down', description: 'Discounts given' },
+  ]
+  const CHART_ROWS = useMemo(() => {
+    const days = Array.from({ length: 7 }, (_, index) => {
+      const date = new Date()
+      date.setHours(0, 0, 0, 0)
+      date.setDate(date.getDate() - (6 - index))
+      const amount = sales.filter((sale) => new Date(sale.createdAt).toDateString() === date.toDateString()).reduce((sum, sale) => sum + (Number(sale.total) || 0), 0)
+      return { label: date.toLocaleDateString('en-US', { weekday: 'long' }), amount }
+    })
+    const maximum = Math.max(...days.map((day) => day.amount), 1)
+    return days.map((day) => ({ ...day, value: (day.amount / maximum) * 100 }))
+  }, [sales])
+  const CHANNELS = ['Cash', 'Card', 'Mobile'].map((name) => {
+    const amount = periodSales.filter((sale) => sale.paymentMethod === name).reduce((sum, sale) => sum + (Number(sale.total) || 0), 0)
+    return { name, description: `${name} payments`, amount, percentage: totalRevenue ? Math.round(amount / totalRevenue * 100) : 0 }
+  })
+  const PRODUCTS = useMemo(() => {
+    const grouped = new Map()
+    periodSales.forEach((sale) => sale.items.forEach((item) => {
+      const current = grouped.get(item.name) || { name: item.name, category: productById.get(String(item.product))?.category || 'Uncategorized', units: 0, revenue: 0 }
+      current.units += Number(item.quantity) || 0
+      current.revenue += (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0)
+      grouped.set(item.name, current)
+    }))
+    return [...grouped.values()].sort((a, b) => b.revenue - a.revenue).slice(0, 4)
+  }, [periodSales, products])
 
   const filteredTransactions = useMemo(() => {
-    if (paymentFilter === 'All') {
-      return TRANSACTIONS
-    }
-
-    return TRANSACTIONS.filter(
-      (transaction) => transaction.method === paymentFilter
-    )
-  }, [paymentFilter])
+    return periodSales.map((sale) => ({
+      id: sale._id,
+      customer: sale.customer || 'Walk-in customer',
+      amount: Number(sale.total) || 0,
+      method: sale.paymentMethod || 'Cash',
+      status: 'Completed',
+      time: new Date(sale.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    })).filter((transaction) => paymentFilter === 'All' || transaction.method === paymentFilter)
+  }, [paymentFilter, periodSales])
 
   return (
     <main className="reports-page">
@@ -271,7 +340,7 @@ export default function Reports() {
 
             <div className="chart-total">
               <span>Total revenue</span>
-              <strong>GH₵ 22,160</strong>
+              <strong>{formatMoney(totalRevenue)}</strong>
             </div>
 
           </div>
@@ -357,7 +426,7 @@ export default function Reports() {
 
           <div className="channel-total">
             <span>Total</span>
-            <strong>GH₵ 15,860</strong>
+            <strong>{formatMoney(totalRevenue)}</strong>
           </div>
 
 

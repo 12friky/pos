@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import '../styles/report.css'
 
 const HISTORY = [
@@ -95,11 +95,50 @@ export default function SaleHistory() {
   const [search, setSearch] = useState('')
   const [methodFilter, setMethodFilter] = useState('All')
   const [periodFilter, setPeriodFilter] = useState('Today')
+  const [sales, setSales] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const loadSales = async () => {
+      try {
+        const token = localStorage.getItem('posToken')
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/sales?limit=500`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        })
+        if (!response.ok) throw new Error('Unable to load sales')
+        setSales(await response.json())
+      } catch (error) {
+        console.error('Sale history:', error)
+        setSales([])
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadSales()
+  }, [])
 
   const filteredHistory = useMemo(() => {
     const query = search.trim().toLowerCase()
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const startOfWeek = new Date(today)
+    startOfWeek.setDate(startOfWeek.getDate() - 6)
+    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
+    const startOfYear = new Date(today.getFullYear(), 0, 1)
 
-    return HISTORY.filter((entry) => {
+    return sales.map((sale) => {
+      const createdAt = new Date(sale.createdAt)
+      return {
+        id: sale._id,
+        customer: sale.customer || 'Walk-in customer',
+        amount: Number(sale.total) || 0,
+        method: sale.paymentMethod || 'Cash',
+        status: 'Completed',
+        date: createdAt.toLocaleDateString(),
+        time: createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        createdAt,
+      }
+    }).filter((entry) => {
       const matchesSearch =
         entry.id.toLowerCase().includes(query) ||
         entry.customer.toLowerCase().includes(query) ||
@@ -110,14 +149,14 @@ export default function SaleHistory() {
 
       const matchesPeriod =
         periodFilter === 'All' ||
-        (periodFilter === 'Today' && entry.date === '2026-08-10') ||
-        (periodFilter === 'This week' && ['2026-08-10', '2026-08-09'].includes(entry.date)) ||
-        (periodFilter === 'This month' && entry.date.startsWith('2026-08')) ||
-        periodFilter === 'This year'
+        (periodFilter === 'Today' && entry.createdAt >= today) ||
+        (periodFilter === 'This week' && entry.createdAt >= startOfWeek) ||
+        (periodFilter === 'This month' && entry.createdAt >= startOfMonth) ||
+        (periodFilter === 'This year' && entry.createdAt >= startOfYear)
 
       return matchesSearch && matchesMethod && matchesPeriod
     })
-  }, [search, methodFilter, periodFilter])
+  }, [search, methodFilter, periodFilter, sales])
 
   const totalSales = filteredHistory.reduce(
     (sum, entry) => sum + entry.amount,
@@ -252,7 +291,7 @@ export default function SaleHistory() {
               <tbody>
                 {filteredHistory.map((entry) => (
                   <tr key={entry.id}>
-                    <td className="transaction-id">{entry.id}</td>
+                    <td className="transaction-id">#{entry.id.slice(-6).toUpperCase()}</td>
                     <td className="customer-cell">
                       <div className="customer-avatar">{entry.customer.split(' ').map((word) => word[0]).join('').slice(0, 2)}</div>
                       <span>{entry.customer}</span>

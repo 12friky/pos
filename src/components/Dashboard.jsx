@@ -1,29 +1,85 @@
-import { useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-export default function Dashboard() {
+export default function Dashboard({ user }) {
   const navigate = useNavigate()
   const [timeRange, setTimeRange] = useState('week')
+  const [products, setProducts] = useState([])
+  const [sales, setSales] = useState([])
 
-  const topSelling = {
-    today: [
-      { name: 'Bottled Water 500ml', units: 8, revenue: 'GH₵ 20.00' },
-      { name: 'Malt Drink Can', units: 6, revenue: 'GH₵ 36.00' },
-      { name: 'Meat Pie', units: 4, revenue: 'GH₵ 16.00' },
-    ],
-    week: [
-      { name: 'Bottled Water 500ml', units: 120, revenue: 'GH₵ 300.00' },
-      { name: 'Jollof Rice (large)', units: 86, revenue: 'GH₵ 1,548.00' },
-      { name: 'Malt Drink Can', units: 64, revenue: 'GH₵ 384.00' },
-    ],
-    month: [
-      { name: 'Jollof Rice (large)', units: 420, revenue: 'GH₵ 7,560.00' },
-      { name: 'Bottled Water 500ml', units: 380, revenue: 'GH₵ 950.00' },
-      { name: 'Malt Drink Can', units: 310, revenue: 'GH₵ 1,860.00' },
-    ],
-  }
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const token = localStorage.getItem('posToken')
+        const [productsRes, salesRes] = await Promise.all([
+          fetch(`${import.meta.env.VITE_API_URL}/products`),
+          fetch(`${import.meta.env.VITE_API_URL}/sales?limit=500`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          }),
+        ])
+        if (!productsRes.ok) throw new Error('Failed to load products')
+        setProducts(await productsRes.json())
+        if (salesRes.ok) setSales(await salesRes.json())
+      } catch (err) {
+        console.error('Dashboard: could not fetch products', err)
+        setProducts([])
+      }
+    }
 
-  const topList = topSelling[timeRange]
+    load()
+  }, [])
+
+  // derive basic inventory stats from products collection
+  const totalProducts = products.length
+  const totalUnits = products.reduce((s, p) => s + (p.stock || 0), 0)
+  const totalInventoryValue = products.reduce((s, p) => s + (p.cost || 0) * (p.stock || 0), 0)
+  const lowStockItems = products.filter((p) => (p.stock || 0) <= (p.minStock || 0))
+  const lowStockCount = lowStockItems.length
+
+  // topList fallback: use products sorted by stock desc (best available without sales data)
+  const inventoryFallback = [...products]
+    .sort((a, b) => (b.stock || 0) - (a.stock || 0))
+    .slice(0, 3)
+    .map((p) => ({ name: p.name, units: p.stock || 0, revenue: `GH₵ ${(p.price || 0) * (p.stock || 0)}` }))
+
+  const startOfToday = useMemo(() => {
+    const d = new Date()
+    d.setHours(0, 0, 0, 0)
+    return d
+  }, [])
+
+  const startOfRange = useMemo(() => {
+    const d = new Date(startOfToday)
+    d.setDate(d.getDate() - (timeRange === 'today' ? 0 : timeRange === 'week' ? 6 : 29))
+    return d
+  }, [startOfToday, timeRange])
+  const rangeSales = sales.filter((sale) => new Date(sale.createdAt) >= startOfRange)
+  const todaySales = sales.filter((sale) => new Date(sale.createdAt) >= startOfToday)
+  const todayTotals = todaySales.reduce((totals, sale) => {
+    totals.discount += Number(sale.discount) || 0
+    totals[sale.paymentMethod] = (totals[sale.paymentMethod] || 0) + (Number(sale.total) || 0)
+    return totals
+  }, { discount: 0, Cash: 0, Card: 0, Mobile: 0 })
+  const topList = useMemo(() => {
+    const productsByName = new Map()
+    rangeSales.forEach((sale) => sale.items.forEach((item) => {
+      const current = productsByName.get(item.name) || { name: item.name, units: 0, revenue: 0 }
+      current.units += Number(item.quantity) || 0
+      current.revenue += (Number(item.unitPrice) || 0) * (Number(item.quantity) || 0)
+      productsByName.set(item.name, current)
+    }))
+    if (productsByName.size === 0) return inventoryFallback.slice(0, 0)
+    return [...productsByName.values()].sort((a, b) => b.units - a.units).slice(0, 3)
+  }, [rangeSales, inventoryFallback])
+  const weeklySales = useMemo(() => Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(startOfToday)
+    date.setDate(date.getDate() - (6 - index))
+    const value = sales.filter((sale) => new Date(sale.createdAt).toDateString() === date.toDateString())
+      .reduce((sum, sale) => sum + (Number(sale.total) || 0), 0)
+    return { label: index === 6 ? 'TODAY' : date.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase(), value }
+  }), [sales, startOfToday])
+  const maxWeeklySales = Math.max(...weeklySales.map((day) => day.value), 1)
+  const money = (value) => `GH₵ ${Number(value || 0).toFixed(2)}`
 
   const handleQuick = (action) => {
     if (action === 'add') navigate('/products')
@@ -822,7 +878,7 @@ export default function Dashboard() {
               </div>
 
               <div className="greeting">
-                Good afternoon, Maya
+                Good afternoon, { (typeof user === 'object' && user && user.name) ? user.name : 'Maya' }
               </div>
             </div>
 
@@ -839,7 +895,26 @@ export default function Dashboard() {
                   <path d="m21 21-4.3-4.3" />
                 </svg>
 
-                <span>Search products, orders...</span>
+                <input
+                  type="search"
+                  placeholder="Search products, orders..."
+                  aria-label="Search products or orders"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      const q = e.target.value.trim()
+                      if (q) navigate(`/products?q=${encodeURIComponent(q)}`)
+                      else navigate('/products')
+                    }
+                  }}
+                  style={{
+                    border: 0,
+                    outline: 'none',
+                    background: 'transparent',
+                    color: '#3d4740',
+                    fontSize: 13,
+                    width: '100%'
+                  }}
+                />
               </div>
 
               <button className="icon-btn">
@@ -892,16 +967,16 @@ export default function Dashboard() {
 
               <div className="stat-top">
                 <div className="stat-label">
-                  Today's Sales
+                  Inventory value
                 </div>
 
                 <div className="badge badge-up">
-                  +12.4%
+                  {totalProducts > 0 ? '+Live' : '—'}
                 </div>
               </div>
 
               <div className="stat-value">
-                GH₵ 4,286
+                GH₵ {totalInventoryValue.toFixed(2)}
               </div>
             </div>
 
@@ -921,16 +996,16 @@ export default function Dashboard() {
 
               <div className="stat-top">
                 <div className="stat-label">
-                  Transactions
+                  Total products
                 </div>
 
                 <div className="badge badge-up">
-                  +8
+                  {totalProducts}
                 </div>
               </div>
 
               <div className="stat-value">
-                67
+                {totalProducts}
               </div>
             </div>
 
@@ -949,16 +1024,20 @@ export default function Dashboard() {
 
               <div className="stat-top">
                 <div className="stat-label">
-                  Average Sale
+                  Average price
                 </div>
 
                 <div className="badge badge-down">
-                  -2.1%
+                  {products.length ? '' : '—'}
                 </div>
               </div>
 
               <div className="stat-value">
-                GH₵ 63.90
+                GH₵ {
+                  (products.length
+                    ? (products.reduce((s, p) => s + (p.price || 0), 0) / products.length).toFixed(2)
+                    : '0.00')
+                }
               </div>
             </div>
 
@@ -982,12 +1061,12 @@ export default function Dashboard() {
                 </div>
 
                 <div className="badge badge-down">
-                  4 items
+                  {lowStockCount} items
                 </div>
               </div>
 
               <div className="stat-value">
-                4
+                {lowStockCount}
               </div>
             </div>
 
@@ -1040,7 +1119,7 @@ export default function Dashboard() {
                       <div className="top-meta">
                         {product.units} sold ·{' '}
                         <span className="mono">
-                          {product.revenue}
+                        {money(product.revenue)}
                         </span>
                       </div>
                     </li>
@@ -1065,6 +1144,13 @@ export default function Dashboard() {
                 <div className="chart-panel-body">
 
                   <div className="chart">
+                    {weeklySales.map((day) => (
+                      <div className="bar-col" key={day.label}>
+                        <div className={'bar' + (day.label === 'TODAY' ? ' today' : '')} style={{ height: `${Math.max((day.value / maxWeeklySales) * 100, day.value ? 4 : 0)}%` }} />
+                        <div className="bar-label">{day.label}</div>
+                      </div>
+                    ))}
+                    {weeklySales.length === -1 && <>
 
                     <div className="bar-col">
                       <div
@@ -1136,6 +1222,7 @@ export default function Dashboard() {
                       </div>
                     </div>
 
+                    </>}
                   </div>
 
                 </div>
@@ -1171,6 +1258,20 @@ export default function Dashboard() {
                     </thead>
 
                     <tbody>
+                      {sales.slice(0, 5).map((sale) => {
+                        const createdAt = new Date(sale.createdAt)
+                        const cashier = sale.cashier?.name || 'Cashier'
+                        return (
+                          <tr key={sale._id}>
+                            <td className="txn-id">#{sale._id.slice(-6).toUpperCase()}</td>
+                            <td>{cashier}</td>
+                            <td><span className={`pill pill-${(sale.paymentMethod || 'cash').toLowerCase()}`}>{sale.paymentMethod}</span></td>
+                            <td>{createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+                            <td className="txn-amount" style={{ textAlign: 'right' }}>{money(sale.total)}</td>
+                          </tr>
+                        )
+                      })}
+                      {sales.length === -1 && <>
 
                       <tr>
                         <td className="txn-id">#0241</td>
@@ -1257,6 +1358,7 @@ export default function Dashboard() {
                         </td>
                       </tr>
 
+                      </>}
                     </tbody>
                   </table>
 
@@ -1280,8 +1382,13 @@ export default function Dashboard() {
                   Summary · Till 02
                 </div>
 
+                <div className="receipt-line"><span>Cash sales (live)</span><span>{money(todayTotals.Cash)}</span></div>
+                <div className="receipt-line"><span>Card sales (live)</span><span>{money(todayTotals.Card)}</span></div>
+                <div className="receipt-line"><span>Mobile money (live)</span><span>{money(todayTotals.Mobile)}</span></div>
+                <div className="receipt-line"><span>Today's revenue</span><span>{money(todayTotals.Cash + todayTotals.Card + todayTotals.Mobile)}</span></div>
+                {todaySales.length === -1 && <>
                 <div className="receipt-line">
-                  <span>Cash sales</span>
+                  <span title={money(todayTotals.Cash)}>Cash sales</span>
                   <span>GH₵ 1,410.00</span>
                 </div>
 
@@ -1301,15 +1408,16 @@ export default function Dashboard() {
                 </div>
 
                 <div className="receipt-line">
-                  <span>Items sold</span>
-                  <span>163</span>
+                  <span>Total units</span>
+                  <span>{totalUnits}</span>
                 </div>
 
                 <div className="receipt-total">
-                  <span>Net total</span>
-                  <span>GH₵ 4,286</span>
+                  <span>Inventory value</span>
+                  <span>GH₵ {totalInventoryValue.toFixed(2)}</span>
                 </div>
 
+                </>}
               </div>
 
               {/* LOW STOCK */}
@@ -1327,65 +1435,20 @@ export default function Dashboard() {
 
                 <div className="stock-list">
 
-                  <div className="stock-row">
-                    <div>
-                      <div className="stock-name">
-                        Bottled Water 500ml
-                      </div>
-                      <div className="stock-sku">
-                        SKU-1042
-                      </div>
-                    </div>
+                    {lowStockItems.length === 0 ? (
+                      <div style={{ padding: 12, color: '#7b8578' }}>No low stock items</div>
+                    ) : (
+                      lowStockItems.slice(0, 6).map((p) => (
+                        <div className="stock-row" key={p._id}>
+                          <div>
+                            <div className="stock-name">{p.name}</div>
+                            <div className="stock-sku">{p.sku}</div>
+                          </div>
 
-                    <div className="stock-qty">
-                      3 left
-                    </div>
-                  </div>
-
-                  <div className="stock-row">
-                    <div>
-                      <div className="stock-name">
-                        Jollof Rice (large)
-                      </div>
-                      <div className="stock-sku">
-                        SKU-2071
-                      </div>
-                    </div>
-
-                    <div className="stock-qty">
-                      5 left
-                    </div>
-                  </div>
-
-                  <div className="stock-row">
-                    <div>
-                      <div className="stock-name">
-                        Malt Drink Can
-                      </div>
-                      <div className="stock-sku">
-                        SKU-1188
-                      </div>
-                    </div>
-
-                    <div className="stock-qty">
-                      6 left
-                    </div>
-                  </div>
-
-                  <div className="stock-row">
-                    <div>
-                      <div className="stock-name">
-                        Meat Pie
-                      </div>
-                      <div className="stock-sku">
-                        SKU-3009
-                      </div>
-                    </div>
-
-                    <div className="stock-qty">
-                      2 left
-                    </div>
-                  </div>
+                          <div className="stock-qty">{p.stock} left</div>
+                        </div>
+                      ))
+                    )}
 
                 </div>
 

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 
 export default function Products() {
   const [search, setSearch] = useState('')
@@ -21,98 +21,33 @@ export default function Products() {
     minStock: '',
     description: '',
     trackInventory: true,
+    imageFile: null,
+    imagePreview: '',
   })
 
-  const products = [
-    {
-      id: 1,
-      name: 'Bottled Water 500ml',
-      sku: 'SKU-1042',
-      category: 'Drinks',
-      price: 2.5,
-      cost: 1.5,
-      stock: 18,
-      minStock: 8,
-      unit: 'Bottle',
-    },
-    {
-      id: 2,
-      name: 'Jollof Rice (Large)',
-      sku: 'SKU-2071',
-      category: 'Food',
-      price: 18,
-      cost: 11,
-      stock: 12,
-      minStock: 5,
-      unit: 'Plate',
-    },
-    {
-      id: 3,
-      name: 'Malt Drink Can',
-      sku: 'SKU-1188',
-      category: 'Drinks',
-      price: 6,
-      cost: 4,
-      stock: 6,
-      minStock: 8,
-      unit: 'Can',
-    },
-    {
-      id: 4,
-      name: 'Meat Pie',
-      sku: 'SKU-3009',
-      category: 'Snacks',
-      price: 4,
-      cost: 2.5,
-      stock: 2,
-      minStock: 6,
-      unit: 'Piece',
-    },
-    {
-      id: 5,
-      name: 'Fresh Bread',
-      sku: 'SKU-3010',
-      category: 'Food',
-      price: 8,
-      cost: 5,
-      stock: 15,
-      minStock: 5,
-      unit: 'Loaf',
-    },
-    {
-      id: 6,
-      name: 'Soda Can',
-      sku: 'SKU-3011',
-      category: 'Drinks',
-      price: 5,
-      cost: 3,
-      stock: 20,
-      minStock: 8,
-      unit: 'Can',
-    },
-    {
-      id: 7,
-      name: 'Fried Rice',
-      sku: 'SKU-3012',
-      category: 'Food',
-      price: 20,
-      cost: 12,
-      stock: 9,
-      minStock: 5,
-      unit: 'Plate',
-    },
-    {
-      id: 8,
-      name: 'Chicken Wings',
-      sku: 'SKU-3013',
-      category: 'Food',
-      price: 25,
-      cost: 16,
-      stock: 7,
-      minStock: 5,
-      unit: 'Portion',
-    },
-  ]
+  const [products, setProducts] = useState([])
+  const [showSuccess, setShowSuccess] = useState(false)
+  const [successMessage, setSuccessMessage] = useState('')
+  const [showError, setShowError] = useState(false)
+  const [errorMessage, setErrorMessage] = useState('')
+
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/products`)
+        if (!res.ok) throw new Error('Failed to fetch')
+        const data = await res.json()
+        // normalize id field to ease frontend usage (backend returns _id)
+        const normalized = data.map((p) => ({ ...p, id: p._id || p.id }))
+        setProducts(normalized)
+      } catch (err) {
+        console.error('Could not load products:', err)
+        setProducts([])
+      }
+    }
+
+    fetchProducts()
+  }, [])
 
   const categories = [
     'All',
@@ -158,6 +93,8 @@ export default function Products() {
         minStock: product.minStock.toString(),
         description: product.description || '',
         trackInventory: true,
+        imageFile: null,
+        imagePreview: product.imageUrl || '',
       })
       return
     }
@@ -173,7 +110,22 @@ export default function Products() {
       minStock: '',
       description: '',
       trackInventory: true,
+      imageFile: null,
+      imagePreview: '',
     })
+  }
+
+  function handleImageChange(e) {
+    const file = e.target.files && e.target.files[0]
+    if (!file) return
+    const url = URL.createObjectURL(file)
+    setFormProduct((current) => ({ ...current, imageFile: file, imagePreview: url }))
+  }
+
+  function removeImage() {
+    setFormProduct((current) => ({ ...current, imageFile: null, imagePreview: '' }))
+    const inp = document.getElementById('product-image-upload')
+    if (inp) inp.value = ''
   }
 
   function closeDrawer() {
@@ -192,10 +144,135 @@ export default function Products() {
     openDrawer('edit', product)
   }
 
+  async function restockProduct(product) {
+    const amount = window.prompt(`How many ${product.unit || 'units'} of ${product.name} would you like to add?`, String(Math.max(Number(product.minStock) || 1, 1)))
+    if (amount === null) return
+    const quantity = Number(amount)
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      setErrorMessage('Enter a restock quantity greater than zero.')
+      setShowError(true)
+      return
+    }
+    try {
+      const token = localStorage.getItem('posToken')
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/products/${product.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ stock: Number(product.stock || 0) + quantity }),
+      })
+      const updated = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(updated.message || 'Unable to restock product')
+      const normalized = { ...updated, id: updated._id || updated.id }
+      setProducts((current) => current.map((item) => item.id === product.id ? normalized : item))
+      setOpenActionProduct(null)
+      setSuccessMessage(`${product.name} restocked successfully.`)
+      setShowSuccess(true)
+    } catch (error) {
+      setErrorMessage(error.message || 'Unable to restock product')
+      setShowError(true)
+    }
+  }
+
   function handleSaveProduct() {
-    setShowDrawer(false)
-    setOpenActionProduct(null)
-    setActiveProduct(null)
+    const token = localStorage.getItem('posToken')
+
+    if (!token) {
+      setErrorMessage('You must be logged in to add a product. Please log in first.')
+      setShowError(true)
+      return
+    }
+
+    if (!formProduct.name.trim()) {
+      setErrorMessage('Product name is required.')
+      setShowError(true)
+      return
+    }
+
+    if (formProduct.imageFile && formProduct.imageFile.size > 5 * 1024 * 1024) {
+      setErrorMessage('Product image must be 5MB or smaller.')
+      setShowError(true)
+      return
+    }
+
+    const payload = {
+      name: formProduct.name,
+      sku: formProduct.sku,
+      category: formProduct.category,
+      unit: formProduct.unit,
+      price: parseFloat(formProduct.price) || 0,
+      cost: parseFloat(formProduct.cost) || 0,
+      stock: parseInt(formProduct.stock || '0', 10) || 0,
+      minStock: parseInt(formProduct.minStock || '0', 10) || 0,
+      description: formProduct.description || '',
+      trackInventory: !!formProduct.trackInventory,
+    }
+
+    const doSave = async () => {
+      try {
+        let res
+        const endpoint = drawerMode === 'edit' && activeProduct
+          ? `${import.meta.env.VITE_API_URL}/products/${activeProduct.id}`
+          : `${import.meta.env.VITE_API_URL}/products`
+        const method = drawerMode === 'edit' ? 'PATCH' : 'POST'
+        if (formProduct.imageFile) {
+          const fd = new FormData()
+          Object.keys(payload).forEach((k) => fd.append(k, payload[k]))
+          fd.append('image', formProduct.imageFile)
+
+          res = await fetch(endpoint, {
+            method,
+            headers: {
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: fd,
+          })
+        } else {
+          res = await fetch(endpoint, {
+            method,
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify(payload),
+          })
+        }
+
+        if (!res.ok) {
+          const errBody = await res.json().catch(() => ({}))
+          const serverMsg = errBody && errBody.message ? errBody.message : 'Failed to save product'
+          if (res.status === 401) {
+            setErrorMessage('Not authorized. Please log in again.')
+            setShowError(true)
+            return
+          }
+          throw new Error(serverMsg)
+        }
+
+        const created = await res.json()
+        // normalize id
+        const createdNorm = { ...created, id: created._id || created.id }
+        setProducts((current) => drawerMode === 'edit'
+          ? current.map((product) => product.id === createdNorm.id ? createdNorm : product)
+          : [createdNorm, ...current])
+        // show success modal
+        setSuccessMessage(drawerMode === 'edit' ? 'Product updated successfully' : 'Product added successfully')
+        setShowSuccess(true)
+        setShowDrawer(false)
+        setOpenActionProduct(null)
+        setActiveProduct(null)
+      } catch (err) {
+        console.error('Save product error:', err)
+        // show error modal
+        setErrorMessage(err.message || 'Failed to save product')
+        setShowError(true)
+        // fallback: close drawer but keep data
+        setShowDrawer(false)
+        setOpenActionProduct(null)
+        setActiveProduct(null)
+      }
+    }
+
+    doSave()
   }
 
   const filteredProducts = useMemo(() => {
@@ -254,7 +331,7 @@ export default function Products() {
     })
 
     return result
-  }, [search, category, stockFilter, sortBy])
+  }, [search, category, stockFilter, sortBy, products])
 
   const totalInventoryValue = products.reduce(
     (sum, product) =>
@@ -1869,9 +1946,17 @@ export default function Products() {
 
                       <div className="product-info">
 
-                        <div className="product-avatar">
-                          {initial}
-                        </div>
+                              <div className="product-avatar">
+                                  {product.imageUrl ? (
+                                    (() => {
+                                      const src = product.imageUrl && String(product.imageUrl)
+                                      const imageSrc = src && (src.startsWith('http') || src.startsWith('data:')) ? src : `${import.meta.env.VITE_API_URL}${src}`
+                                      return <img src={imageSrc} alt={product.name} style={{ width: 43, height: 43, borderRadius: 11, objectFit: 'cover' }} />
+                                    })()
+                                  ) : (
+                                    initial
+                                  )}
+                              </div>
 
                         <div className="product-details">
 
@@ -1982,17 +2067,18 @@ export default function Products() {
                             <button
                               type="button"
                               className="menu-btn"
+                              onClick={() => restockProduct(product)}
+                            >
+                              Restock
+                            </button>
+                            <button
+                              type="button"
+                              className="menu-btn"
                               onClick={() =>
                                 handleEditProduct(product)
                               }
                             >
                               Edit
-                            </button>
-                            <button
-                              type="button"
-                              className="menu-btn danger"
-                            >
-                              Delete
                             </button>
                             <button
                               type="button"
@@ -2095,20 +2181,30 @@ export default function Products() {
                 </div>
 
                 <div className="drawer-body">
-                  <div className="img-upload">
-                    <svg
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <rect x="3" y="3" width="18" height="18" rx="2" />
-                      <circle cx="9" cy="9" r="2" />
-                      <path d="m21 15-5-5L5 21" />
-                    </svg>
-                    <span>Upload product image</span>
-                    <small>PNG or JPG, up to 2MB</small>
-                  </div>
+                    <label className="img-upload" htmlFor="product-image-upload">
+                      {formProduct.imagePreview ? (
+                        <div style={{ position: 'relative', width: '100%' }}>
+                          <img src={formProduct.imagePreview} alt="preview" style={{ width: '100%', borderRadius: 12, maxHeight: 220, objectFit: 'cover' }} />
+                          <button type="button" onClick={(e) => { e.preventDefault(); removeImage() }} style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: 8, padding: '4px 8px', cursor: 'pointer' }}>Remove</button>
+                        </div>
+                      ) : (
+                        <>
+                          <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                          >
+                            <rect x="3" y="3" width="18" height="18" rx="2" />
+                            <circle cx="9" cy="9" r="2" />
+                            <path d="m21 15-5-5L5 21" />
+                          </svg>
+                          <span>Upload product image</span>
+                          <small>PNG or JPG, up to 2MB</small>
+                        </>
+                      )}
+                      <input id="product-image-upload" type="file" accept="image/*" style={{ display: 'none' }} onChange={handleImageChange} />
+                    </label>
 
                   <div className="field-group">
                     <label>Product name</label>
@@ -2300,6 +2396,36 @@ export default function Products() {
               </aside>
             </div>
           )}
+
+            {/* Success modal */}
+            {showSuccess && (
+              <div className="overlay" onClick={() => setShowSuccess(false)}>
+                <div className="drawer" style={{ width: 420, maxWidth: '90%', margin: 'auto', height: 'auto' }} onClick={(e) => e.stopPropagation()}>
+                  <div style={{ padding: 22 }}>
+                    <h3 style={{ marginTop: 0 }}>Success</h3>
+                    <p>{successMessage}</p>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                      <button className="btn-save" onClick={() => setShowSuccess(false)}>OK</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Error modal */}
+            {showError && (
+              <div className="overlay" onClick={() => setShowError(false)}>
+                <div className="drawer" style={{ width: 420, maxWidth: '90%', margin: 'auto', height: 'auto' }} onClick={(e) => e.stopPropagation()}>
+                  <div style={{ padding: 22 }}>
+                    <h3 style={{ marginTop: 0 }}>Error</h3>
+                    <p>{errorMessage}</p>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                      <button className="btn-cancel" onClick={() => setShowError(false)}>Close</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
           {/* =========================
               BOTTOM INFORMATION
