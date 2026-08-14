@@ -26,7 +26,14 @@ export default function Settings({ onUserUpdated }) {
         const { user } = await response.json()
         setForm({ ...emptySettings, ...user })
       } catch (err) {
-        setError(err.message || 'Unable to load settings')
+        try {
+          const cachedUser = JSON.parse(localStorage.getItem('posUser') || '{}')
+          if (!cachedUser.id && !cachedUser._id) throw err
+          setForm({ ...emptySettings, ...cachedUser })
+          setMessage('You are offline. Showing the last saved settings.')
+        } catch {
+          setError(err.message || 'Unable to load settings')
+        }
       } finally {
         setLoading(false)
       }

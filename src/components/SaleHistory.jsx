@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import '../styles/report.css'
+import { useLiveQuery } from 'dexie-react-hooks'
+import { posDb } from '../data/posDb'
+import { syncPosData } from '../data/sync'
 
 const HISTORY = [
   {
@@ -95,27 +98,14 @@ export default function SaleHistory() {
   const [search, setSearch] = useState('')
   const [methodFilter, setMethodFilter] = useState('All')
   const [periodFilter, setPeriodFilter] = useState('Today')
-  const [sales, setSales] = useState([])
-  const [loading, setLoading] = useState(true)
+  const userId = (() => { try { const user = JSON.parse(localStorage.getItem('posUser') || '{}'); return String(user.id || user._id || '') } catch { return '' } })()
+  const sales = useLiveQuery(() => userId ? posDb.sales.where('userId').equals(userId).toArray() : [], [userId], [])
+  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    const loadSales = async () => {
-      try {
-        const token = localStorage.getItem('posToken')
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/sales?limit=500`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        })
-        if (!response.ok) throw new Error('Unable to load sales')
-        setSales(await response.json())
-      } catch (error) {
-        console.error('Sale history:', error)
-        setSales([])
-      } finally {
-        setLoading(false)
-      }
-    }
-    loadSales()
-  }, [])
+    const token = localStorage.getItem('posToken')
+    if (userId && token) syncPosData({ userId, token })
+  }, [userId])
 
   const filteredHistory = useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -129,7 +119,7 @@ export default function SaleHistory() {
     return sales.map((sale) => {
       const createdAt = new Date(sale.createdAt)
       return {
-        id: sale._id,
+        id: String(sale._id || sale.serverId || sale.clientRequestId || sale.localId),
         customer: sale.customer || 'Walk-in customer',
         amount: Number(sale.total) || 0,
         method: sale.paymentMethod || 'Cash',

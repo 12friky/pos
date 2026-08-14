@@ -174,20 +174,6 @@ export default function NewSale({ user }) {
       return
     }
 
-    const saveOffline = async () => {
-      await queueOfflineSale(userId, salePayload)
-      setCart([])
-      setDiscount(0)
-      setCustomer('Walk-in customer')
-      setConfirmingSale(false)
-      alert('You are offline. The sale was saved locally and will synchronize automatically when the connection returns.')
-    }
-
-    if (!navigator.onLine) {
-      try { await saveOffline() } catch (error) { console.error('Offline sale save error:', error); alert('Unable to save this sale locally.') }
-      return
-    }
-
     if (payment === 'Cash') {
       if (!Number.isFinite(receivedAmount) || cashReceived.trim() === '') {
         setCashError('Enter the cash received from the customer.')
@@ -220,6 +206,20 @@ export default function NewSale({ user }) {
       total,
       paymentMethod: payment,
       customer,
+    }
+
+    const saveOffline = async () => {
+      await queueOfflineSale(userId, salePayload)
+      setCart([])
+      setDiscount(0)
+      setCustomer('Walk-in customer')
+      setConfirmingSale(false)
+      alert('You are offline. The sale was saved locally and will synchronize automatically when the connection returns.')
+    }
+
+    if (!navigator.onLine) {
+      try { await saveOffline() } catch (error) { console.error('Offline sale save error:', error); alert(`Unable to save this sale locally: ${error.message || 'unknown local database error'}`) }
+      return
     }
 
     const token = localStorage.getItem('posToken')
