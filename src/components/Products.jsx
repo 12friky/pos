@@ -1,4 +1,6 @@
 import { useMemo, useState, useEffect } from 'react'
+import { posDb } from '../data/posDb'
+import { syncPosData } from '../data/sync'
 
 export default function Products() {
   const [search, setSearch] = useState('')
@@ -33,19 +35,19 @@ export default function Products() {
 
   useEffect(() => {
     const fetchProducts = async () => {
+      const token = localStorage.getItem('posToken')
+      let userId = ''
+      try { const user = JSON.parse(localStorage.getItem('posUser') || '{}'); userId = String(user.id || user._id || '') } catch {}
       try {
-        const token = localStorage.getItem('posToken')
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/products`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        })
-        if (!res.ok) throw new Error('Failed to fetch')
-        const data = await res.json()
+        await syncPosData({ userId, token })
+        const data = await posDb.products.where('userId').equals(userId).toArray()
         // normalize id field to ease frontend usage (backend returns _id)
         const normalized = data.map((p) => ({ ...p, id: p._id || p.id }))
         setProducts(normalized)
       } catch (err) {
         console.error('Could not load products:', err)
-        setProducts([])
+        const cached = userId ? await posDb.products.where('userId').equals(userId).toArray() : []
+        setProducts(cached.map((p) => ({ ...p, id: p.serverId || p._id || p.id })))
       }
     }
 

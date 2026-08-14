@@ -11,6 +11,14 @@ posDb.version(1).stores({
   syncQueue: '++localId, userId, entity, operation, recordLocalId, status, [userId+status], createdAt',
 })
 
+// Upgrade devices that created the original cache before the queue status index.
+posDb.version(2).stores({
+  products: '++localId, userId, serverId, [userId+serverId], updatedAt',
+  customers: '++localId, userId, serverId, [userId+serverId], updatedAt',
+  sales: '++localId, userId, serverId, clientRequestId, [userId+serverId], syncStatus, createdAt',
+  syncQueue: '++localId, userId, entity, operation, recordLocalId, status, [userId+status], createdAt',
+})
+
 const serverIdOf = (record) => String(record._id || record.id)
 
 export async function cacheServerRecords(table, userId, records) {
@@ -33,6 +41,7 @@ export async function cacheServerRecords(table, userId, records) {
 }
 
 export async function queueOfflineSale(userId, salePayload) {
+  if (!userId) throw new Error('No signed-in user was available for this offline sale')
   const clientRequestId = crypto.randomUUID()
   const createdAt = new Date().toISOString()
   return posDb.transaction('rw', posDb.sales, posDb.products, posDb.syncQueue, async () => {

@@ -1,35 +1,20 @@
 import { useMemo, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useLiveQuery } from 'dexie-react-hooks'
+import { posDb } from '../data/posDb'
+import { syncPosData } from '../data/sync'
 
 export default function Dashboard({ user }) {
   const navigate = useNavigate()
   const [timeRange, setTimeRange] = useState('week')
-  const [products, setProducts] = useState([])
-  const [sales, setSales] = useState([])
+  const userId = String(user?.id || user?._id || '')
+  const products = useLiveQuery(() => userId ? posDb.products.where('userId').equals(userId).toArray() : [], [userId], [])
+  const sales = useLiveQuery(() => userId ? posDb.sales.where('userId').equals(userId).toArray() : [], [userId], [])
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const token = localStorage.getItem('posToken')
-        const [productsRes, salesRes] = await Promise.all([
-          fetch(`${import.meta.env.VITE_API_URL}/api/products`, {
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-          }),
-          fetch(`${import.meta.env.VITE_API_URL}/api/sales?limit=500`, {
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-          }),
-        ])
-        if (!productsRes.ok) throw new Error('Failed to load products')
-        setProducts(await productsRes.json())
-        if (salesRes.ok) setSales(await salesRes.json())
-      } catch (err) {
-        console.error('Dashboard: could not fetch products', err)
-        setProducts([])
-      }
-    }
-
-    load()
-  }, [])
+    const token = localStorage.getItem('posToken')
+    if (userId && token) syncPosData({ userId, token })
+  }, [userId])
 
   // derive basic inventory stats from products collection
   const totalProducts = products.length

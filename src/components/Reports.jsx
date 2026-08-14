@@ -1,6 +1,9 @@
 /* eslint-disable no-unused-vars */
 import { useEffect, useMemo, useState } from 'react'
 import '../styles/report.css'
+import { useLiveQuery } from 'dexie-react-hooks'
+import { posDb } from '../data/posDb'
+import { syncPosData } from '../data/sync'
 
 const REPORTS = [
   {
@@ -143,25 +146,14 @@ const formatMoney = (amount) =>
 export default function Reports() {
   const [period, setPeriod] = useState('This week')
   const [paymentFilter, setPaymentFilter] = useState('All')
-  const [sales, setSales] = useState([])
-  const [products, setProducts] = useState([])
+  const userId = (() => { try { const user = JSON.parse(localStorage.getItem('posUser') || '{}'); return String(user.id || user._id || '') } catch { return '' } })()
+  const sales = useLiveQuery(() => userId ? posDb.sales.where('userId').equals(userId).toArray() : [], [userId], [])
+  const products = useLiveQuery(() => userId ? posDb.products.where('userId').equals(userId).toArray() : [], [userId], [])
 
   useEffect(() => {
-    const loadReportData = async () => {
-      try {
-        const token = localStorage.getItem('posToken')
-        const [salesResponse, productsResponse] = await Promise.all([
-          fetch(`${import.meta.env.VITE_API_URL}/api/sales?limit=500`, { headers: token ? { Authorization: `Bearer ${token}` } : {} }),
-          fetch(`${import.meta.env.VITE_API_URL}/api/products`, { headers: token ? { Authorization: `Bearer ${token}` } : {} }),
-        ])
-        if (salesResponse.ok) setSales(await salesResponse.json())
-        if (productsResponse.ok) setProducts(await productsResponse.json())
-      } catch (error) {
-        console.error('Reports:', error)
-      }
-    }
-    loadReportData()
-  }, [])
+    const token = localStorage.getItem('posToken')
+    if (userId && token) syncPosData({ userId, token })
+  }, [userId])
 
   const periodStart = useMemo(() => {
     const now = new Date()

@@ -16,7 +16,10 @@ const productImageSrc = (imageUrl) => {
 
 export default function NewSale({ user }) {
   const navigate = useNavigate()
-  const userId = String(user?.id || user?._id || '')
+  const userId = (() => {
+    if (user?.id || user?._id) return String(user.id || user._id)
+    try { const saved = JSON.parse(localStorage.getItem('posUser') || '{}'); return String(saved.id || saved._id || '') } catch { return '' }
+  })()
 
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('All')
