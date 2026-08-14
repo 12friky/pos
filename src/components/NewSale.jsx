@@ -208,16 +208,19 @@ export default function NewSale({ user }) {
     if (!verifyResponse.ok) throw new Error(verification.message || 'Unable to verify the Mobile payment.')
     if (verification.status !== 'success') return verification.status || 'pending'
 
-    const saleResponse = await fetch(`${import.meta.env.VITE_API_URL}/api/sales`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ ...pendingSale.salePayload, paystackReference: reference }),
-    })
-    const createdSale = await saleResponse.json().catch(() => ({}))
-    if (!saleResponse.ok) throw new Error(createdSale.message || 'Payment succeeded, but the sale could not be recorded.')
+    let createdSale = verification.sale
+    if (!createdSale) {
+      const saleResponse = await fetch(`${import.meta.env.VITE_API_URL}/api/sales`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ ...pendingSale.salePayload, paystackReference: reference }),
+      })
+      createdSale = await saleResponse.json().catch(() => ({}))
+      if (!saleResponse.ok) throw new Error(createdSale.message || 'Payment succeeded, but the sale could not be recorded.')
+    }
 
     const now = new Date()
-    setReceipt({ orderNumber: `POS-${(createdSale._id || now.valueOf()).toString().slice(-8).toUpperCase()}`, customer: pendingSale.customer, date: now.toLocaleDateString(), time: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), cashier: pendingSale.cashier, businessName: pendingSale.businessName, businessLogoUrl: pendingSale.businessLogoUrl, register: 'Till 02', payment: 'Mobile', items: pendingSale.receiptItems, subtotal: pendingSale.salePayload.subtotal, discount: pendingSale.salePayload.discount, total: pendingSale.salePayload.total, received: pendingSale.received, change: pendingSale.change })
+    setReceipt({ orderNumber: `POS-${(createdSale._id || now.valueOf()).toString().slice(-8).toUpperCase()}`, customer: createdSale.customer || pendingSale.customer, date: now.toLocaleDateString(), time: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), cashier: pendingSale.cashier, businessName: pendingSale.businessName, businessLogoUrl: pendingSale.businessLogoUrl, register: 'Till 02', payment: 'Mobile', items: pendingSale.receiptItems, subtotal: createdSale.subtotal ?? pendingSale.salePayload.subtotal, discount: createdSale.discount ?? pendingSale.salePayload.discount, total: createdSale.total ?? pendingSale.salePayload.total, received: createdSale.total ?? pendingSale.salePayload.total, change: 0 })
     setCart([])
     setDiscount(0)
     setCustomer('Walk-in customer')
@@ -235,7 +238,10 @@ export default function NewSale({ user }) {
       attempts += 1
       try {
         const status = await completeMobileSale(mobilePaymentPending.reference)
-        if (!active || status === 'pending') {
+        // Paystack can report an inline transaction as abandoned before the
+        // customer completes the checkout. Keep polling until it succeeds or
+        // the checkout window expires.
+        if (!active || status === 'pending' || status === 'abandoned') {
           if (attempts >= 36 && active) {
             setMobilePaymentPending(null)
             setMobileError('The Mobile payment timed out. Confirm it was not charged, then try again or use Cash.')
@@ -267,15 +273,6 @@ export default function NewSale({ user }) {
       return
     }
 
-    if (!Number.isFinite(receivedAmount) || cashReceived.trim() === '') {
-      setMobileError('Enter the amount received from the customer.')
-      return
-    }
-    if (receivedAmount < total) {
-      setMobileError(`Amount received must cover the total of GH₵ ${total.toFixed(2)}.`)
-      return
-    }
-
     const token = localStorage.getItem('posToken')
     if (!token) {
       setMobileError('You must be logged in to start a Mobile payment.')
@@ -288,10 +285,10 @@ export default function NewSale({ user }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          amount: receivedAmount,
           currency: 'GHS',
           channels: ['mobile_money'],
           metadata: { customer: salePayload.customer, source: 'pos-sale' },
+          salePayload,
         }),
       })
       const checkout = await response.json().catch(() => ({}))
@@ -306,8 +303,8 @@ export default function NewSale({ user }) {
         businessName: user?.businessName,
         businessLogoUrl: user?.businessLogoUrl,
         receiptItems: cart.map((item) => ({ ...item })),
-        received: receivedAmount,
-        change: cashBalance,
+        received: total,
+        change: 0,
       }))
       setMobilePaymentPending({ reference: checkout.reference })
       const PaystackPop = await loadPaystackInline()
@@ -336,17 +333,6 @@ export default function NewSale({ user }) {
 
       if (receivedAmount < total) {
         setCashError(`Cash received must cover the total of GH₵ ${total.toFixed(2)}.`)
-        return
-      }
-    }
-
-    if (payment === 'Mobile') {
-      if (!Number.isFinite(receivedAmount) || cashReceived.trim() === '') {
-        setMobileError('Enter the amount received from the customer.')
-        return
-      }
-      if (receivedAmount < total) {
-        setMobileError(`Amount received must cover the total of GH₵ ${total.toFixed(2)}.`)
         return
       }
     }
@@ -1111,26 +1097,7 @@ export default function NewSale({ user }) {
 
                 {payment === 'Mobile' && (
                   <div className="mobile-payment">
-                    <label htmlFor="mobile-received">Amount received</label>
-                    <input
-                      id="mobile-received"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      inputMode="decimal"
-                      placeholder="0.00"
-                      value={cashReceived}
-                      onChange={(event) => {
-                        setCashReceived(event.target.value)
-                        setMobileError('')
-                      }}
-                    />
-                    <div className="cash-balance mobile-balance">
-                      <span>Balance / change due</span>
-                      <strong className={cashReceived !== '' && cashBalance < 0 ? 'amount-owing' : ''}>GH₵ {cashReceived === '' ? '0.00' : Math.max(cashBalance, 0).toFixed(2)}</strong>
-                    </div>
-                    {cashReceived !== '' && cashBalance < 0 && <p className="cash-shortfall">Amount still due: GH₵ {Math.abs(cashBalance).toFixed(2)}</p>}
-                    <p>Paystack Checkout will open securely in this screen. The customer can enter their Mobile Money number there.</p>
+                    <p>Paystack will securely charge the order total of GH₵ {total.toFixed(2)}. The customer can enter their Mobile Money number there.</p>
                     {mobileError && <p className="cash-error" role="alert">{mobileError}</p>}
                   </div>
                 )}
