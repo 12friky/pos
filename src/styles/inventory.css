@@ -313,7 +313,11 @@
   font-weight: 700;
   background: #edf3ef;
   color: #35664f;
+  overflow: hidden;
 }
+
+.product-avatar img,
+.restock-avatar img { width: 100%; height: 100%; object-fit: cover; }
 
 .product-avatar {
   width: 39px;

@@ -733,7 +733,13 @@
   gap: 15px;
   min-height: 55px;
   border-bottom: 1px solid #f0f2f0;
+  background: transparent;
 }
+
+button.recent-row:hover:not(:disabled) { background: transparent; }
+.recent-product-info { display: flex; align-items: center; width: 100%; min-width: 0; gap: 10px; }
+.recent-product-image { width: 36px; height: 36px; flex: 0 0 36px; border-radius: 9px; object-fit: cover; }
+.recent-product-info .recent-price { margin-left: auto; }
 
 .recent-row:last-child {
   border-bottom: 0;

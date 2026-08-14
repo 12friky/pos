@@ -10,8 +10,11 @@ import Login from './Login'
 import Register from './Register'
 import Settings from './Settings'
 import { CustomerTools, InventoryUtilities, MarketingCenter } from './Utilities'
+import { syncPosData } from '../data/sync'
+import { useOnlineStatus } from '../hooks/useOnlineStatus'
 
 function App() {
+  const online = useOnlineStatus()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [utilitiesOpen, setUtilitiesOpen] = useState(false)
   const [isMobileNav, setIsMobileNav] = useState(() => window.matchMedia('(max-width: 1024px)').matches)
@@ -36,6 +39,16 @@ function App() {
     mediaQuery.addEventListener('change', updateNavigationMode)
     return () => mediaQuery.removeEventListener('change', updateNavigationMode)
   }, [])
+
+  useEffect(() => {
+    const token = localStorage.getItem('posToken')
+    const userId = currentUser?.id || currentUser?._id
+    if (!online || !token || !userId) return
+    const sync = () => syncPosData({ userId: String(userId), token })
+    sync()
+    window.addEventListener('focus', sync)
+    return () => window.removeEventListener('focus', sync)
+  }, [online, currentUser])
 
   useEffect(() => {
     const loadCurrentUser = async () => {

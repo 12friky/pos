@@ -2,11 +2,21 @@ import { useMemo, useState, useEffect } from 'react'
 import '../styles/newsale.css'
 import { useNavigate } from 'react-router-dom'
 import SaleReceipt from './SaleReceipt'
+import { useLiveQuery } from 'dexie-react-hooks'
+import { posDb, queueOfflineSale } from '../data/posDb'
+import { syncPosData } from '../data/sync'
 
 // products loaded from backend
 
+const productImageSrc = (imageUrl) => {
+  if (!imageUrl) return null
+  const value = String(imageUrl)
+  return value.startsWith('http') || value.startsWith('data:') ? value : `${import.meta.env.VITE_API_URL}${value}`
+}
+
 export default function NewSale({ user }) {
   const navigate = useNavigate()
+  const userId = String(user?.id || user?._id || '')
 
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('All')
@@ -19,37 +29,16 @@ export default function NewSale({ user }) {
   const [customer, setCustomer] = useState('Walk-in customer')
   const [heldSale, setHeldSale] = useState(false)
 
-  const [products, setProducts] = useState([])
-  const [recentSales, setRecentSales] = useState([])
-  const [recentSalesLoading, setRecentSalesLoading] = useState(true)
+  const products = useLiveQuery(() => userId ? posDb.products.where('userId').equals(userId).toArray() : [], [userId], [])
+  const recentSales = useLiveQuery(() => userId ? posDb.sales.where('userId').equals(userId).reverse().sortBy('createdAt') : [], [userId], [])
+  const recentSalesLoading = false
 
   const [cart, setCart] = useState([])
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const token = localStorage.getItem('posToken')
-        const [productsRes, salesRes] = await Promise.all([
-          fetch(`${import.meta.env.VITE_API_URL}/api/products`, {
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-          }),
-          fetch(`${import.meta.env.VITE_API_URL}/api/sales?limit=50`, {
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-          }),
-        ])
-        if (!productsRes.ok) throw new Error('Failed to load products')
-        setProducts(await productsRes.json())
-        if (salesRes.ok) setRecentSales(await salesRes.json())
-      } catch (err) {
-        console.error('NewSale: could not fetch products', err)
-        setProducts([])
-      } finally {
-        setRecentSalesLoading(false)
-      }
-    }
-
-    load()
-  }, [])
+    const token = localStorage.getItem('posToken')
+    if (userId && token) syncPosData({ userId, token })
+  }, [userId])
 
   const categories = ['All', ...Array.from(new Set(products.map((p) => p.category).filter(Boolean)))]
 
@@ -182,6 +171,20 @@ export default function NewSale({ user }) {
       return
     }
 
+    const saveOffline = async () => {
+      await queueOfflineSale(userId, salePayload)
+      setCart([])
+      setDiscount(0)
+      setCustomer('Walk-in customer')
+      setConfirmingSale(false)
+      alert('You are offline. The sale was saved locally and will synchronize automatically when the connection returns.')
+    }
+
+    if (!navigator.onLine) {
+      try { await saveOffline() } catch (error) { console.error('Offline sale save error:', error); alert('Unable to save this sale locally.') }
+      return
+    }
+
     if (payment === 'Cash') {
       if (!Number.isFinite(receivedAmount) || cashReceived.trim() === '') {
         setCashError('Enter the cash received from the customer.')
@@ -258,22 +261,16 @@ export default function NewSale({ user }) {
           change: payment === 'Cash' ? cashBalance : 0,
         })
 
-        // refresh products and normalize ids
-        const pRes = await fetch(`${import.meta.env.VITE_API_URL}/api/products`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        if (pRes.ok) {
-          const pData = await pRes.json()
-          const normalized = pData.map((p) => ({ ...p, id: p._id || p.id }))
-          setProducts(normalized)
-        }
+        await syncPosData({ userId, token })
 
         setCart([])
         setDiscount(0)
         setCustomer('Walk-in customer')
       } catch (err) {
         console.error('Sale create error:', err)
-        alert(err.message || 'Unable to complete sale')
+        if (err instanceof TypeError) {
+          try { await saveOffline() } catch (offlineError) { console.error('Offline sale save error:', offlineError); alert('Unable to save this sale locally.') }
+        } else alert(err.message || 'Unable to complete sale')
       }
     }
 
@@ -494,11 +491,14 @@ export default function NewSale({ user }) {
                         onClick={() => addToCart(product)}
                         style={{ width: '100%', border: 0, textAlign: 'left', cursor: 'pointer' }}
                       >
-                        <div>
-                          <div className="recent-name">{product.name}</div>
+                        <div className="recent-product-info">
+                          {productImageSrc(product.imageUrl) && <img className="recent-product-image" src={productImageSrc(product.imageUrl)} alt={product.name} />}
+                          <div>
+                            <div className="recent-name">{product.name}</div>
                           <div className="recent-sku">{product.sku || 'No SKU'} · {Number(product.stock || 0)} in stock</div>
                         </div>
                         <div className="recent-price">GH₵ {Number(product.price || 0).toFixed(2)}</div>
+                        </div>
                       </button>
                     ))
                   )}

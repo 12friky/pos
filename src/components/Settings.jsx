@@ -9,6 +9,7 @@ const emptySettings = {
 export default function Settings({ onUserUpdated }) {
   const [form, setForm] = useState(emptySettings)
   const [logo, setLogo] = useState(null)
+  const [logoPreview, setLogoPreview] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
@@ -35,6 +36,25 @@ export default function Settings({ onUserUpdated }) {
 
   const update = (field, value) => setForm((current) => ({ ...current, [field]: value }))
 
+  const handleLogoChange = (event) => {
+    const file = event.target.files?.[0]
+    setError('')
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      setError('Please choose an image file for the business logo.')
+      event.target.value = ''
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError('The business logo must be 5MB or smaller.')
+      event.target.value = ''
+      return
+    }
+    if (logoPreview) URL.revokeObjectURL(logoPreview)
+    setLogo(file)
+    setLogoPreview(URL.createObjectURL(file))
+  }
+
   const save = async (event) => {
     event.preventDefault()
     setSaving(true)
@@ -54,6 +74,8 @@ export default function Settings({ onUserUpdated }) {
       localStorage.setItem('posUser', JSON.stringify(body.user))
       onUserUpdated(body.user)
       setLogo(null)
+      if (logoPreview) URL.revokeObjectURL(logoPreview)
+      setLogoPreview('')
       setMessage('Settings saved successfully.')
     } catch (err) {
       setError(err.message || 'Unable to save settings')
@@ -74,8 +96,8 @@ export default function Settings({ onUserUpdated }) {
           <h2>Business profile</h2>
           <p>These details identify your business on receipts and throughout the POS.</p>
           <div className="settings-logo-row">
-            {form.businessLogoUrl ? <img src={form.businessLogoUrl} alt="Business logo" /> : <div className="settings-logo-placeholder">{(form.businessName || 'B').slice(0, 1).toUpperCase()}</div>}
-            <label className="settings-upload">Change logo<input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={(event) => setLogo(event.target.files?.[0] || null)} /></label>
+            {logoPreview || form.businessLogoUrl ? <img src={logoPreview || form.businessLogoUrl} alt="Business logo" /> : <div className="settings-logo-placeholder">{(form.businessName || 'B').slice(0, 1).toUpperCase()}</div>}
+            <label className="settings-upload">{logo ? 'Replace logo' : 'Change logo'}<input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={handleLogoChange} /></label>
           </div>
           <div className="settings-grid">
             <label>Business name<input required value={form.businessName} onChange={(e) => update('businessName', e.target.value)} /></label>

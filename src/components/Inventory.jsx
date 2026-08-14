@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import '../styles/inventory.css'
+import { useLiveQuery } from 'dexie-react-hooks'
+import { posDb } from '../data/posDb'
+import { syncPosData } from '../data/sync'
 
 const stockStatus = (stock, minStock) => {
   if (stock === 0) {
@@ -40,11 +43,19 @@ const getInitials = (name) => {
     .toUpperCase()
 }
 
+const productImageSrc = (imageUrl) => {
+  if (!imageUrl) return null
+  const value = String(imageUrl)
+  return value.startsWith('http') || value.startsWith('data:') ? value : `${import.meta.env.VITE_API_URL}${value}`
+}
+
 export default function Inventory() {
+  const rawUser = localStorage.getItem('posUser')
+  const userId = (() => { try { const user = JSON.parse(rawUser || '{}'); return String(user.id || user._id || '') } catch { return '' } })()
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('All')
   const [statusFilter, setStatusFilter] = useState('All')
-  const [products, setProducts] = useState([])
+  const products = useLiveQuery(() => userId ? posDb.products.where('userId').equals(userId).toArray() : [], [userId], [])
   const [loading, setLoading] = useState(true)
   const [actionError, setActionError] = useState('')
 
@@ -52,14 +63,9 @@ export default function Inventory() {
     setLoading(true)
     try {
       const token = localStorage.getItem('posToken')
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/products`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      })
-      if (!response.ok) throw new Error('Unable to load inventory')
-      setProducts(await response.json())
+      await syncPosData({ userId, token })
     } catch (error) {
       console.error('Inventory:', error)
-      setProducts([])
     } finally {
       setLoading(false)
     }
@@ -84,7 +90,8 @@ export default function Inventory() {
       })
       const updated = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(updated.message || 'Unable to restock product')
-      setProducts((current) => current.map((item) => (item._id || item.id) === (updated._id || updated.id) ? updated : item))
+      const local = await posDb.products.where('[userId+serverId]').equals([userId, String(updated._id || updated.id)]).first()
+      if (local) await posDb.products.update(local.localId, { ...updated, serverId: String(updated._id || updated.id), updatedAt: Date.now() })
       setActionError('')
     } catch (error) {
       setActionError(error.message || 'Unable to restock product')
@@ -92,6 +99,16 @@ export default function Inventory() {
   }
 
   const categories = ['All', ...new Set(products.map((item) => item.category).filter(Boolean))]
+
+  const startRestock = () => {
+    if (products.length === 0) return setActionError('Add a product before adjusting stock.')
+    const choice = window.prompt('Enter the product name or SKU to restock:')
+    if (choice === null) return
+    const query = choice.trim().toLowerCase()
+    const product = products.find((item) => item.name?.toLowerCase() === query || item.sku?.toLowerCase() === query)
+    if (!product) return setActionError('No product matched that name or SKU. Please enter an exact product name or SKU.')
+    restockProduct(product)
+  }
 
   const filteredProducts = useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -211,7 +228,7 @@ export default function Inventory() {
             Reset
           </button>
 
-          <button className="inventory-primary-btn">
+          <button className="inventory-primary-btn" type="button" onClick={startRestock}>
             <span>+</span>
             Add Stock
           </button>
@@ -421,7 +438,7 @@ export default function Inventory() {
                         <div className="inventory-product">
 
                           <div className="product-avatar">
-                            {getInitials(product.name)}
+                            {productImageSrc(product.imageUrl) ? <img src={productImageSrc(product.imageUrl)} alt={product.name} /> : getInitials(product.name)}
                           </div>
 
                           <div>
@@ -612,7 +629,7 @@ export default function Inventory() {
                   >
 
                     <div className="restock-avatar">
-                      {getInitials(item.name)}
+                      {productImageSrc(item.imageUrl) ? <img src={productImageSrc(item.imageUrl)} alt={item.name} /> : getInitials(item.name)}
                     </div>
 
                     <div className="restock-info">
