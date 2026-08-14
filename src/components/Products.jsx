@@ -34,7 +34,10 @@ export default function Products() {
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/products`)
+        const token = localStorage.getItem('posToken')
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/products`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        })
         if (!res.ok) throw new Error('Failed to fetch')
         const data = await res.json()
         // normalize id field to ease frontend usage (backend returns _id)

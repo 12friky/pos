@@ -51,7 +51,10 @@ export default function Inventory() {
   const loadProducts = async () => {
     setLoading(true)
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/products`)
+      const token = localStorage.getItem('posToken')
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/products`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
       if (!response.ok) throw new Error('Unable to load inventory')
       setProducts(await response.json())
     } catch (error) {

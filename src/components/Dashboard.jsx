@@ -12,7 +12,9 @@ export default function Dashboard({ user }) {
       try {
         const token = localStorage.getItem('posToken')
         const [productsRes, salesRes] = await Promise.all([
-          fetch(`${import.meta.env.VITE_API_URL}/api/products`),
+          fetch(`${import.meta.env.VITE_API_URL}/api/products`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          }),
           fetch(`${import.meta.env.VITE_API_URL}/api/sales?limit=500`, {
             headers: token ? { Authorization: `Bearer ${token}` } : {},
           }),
