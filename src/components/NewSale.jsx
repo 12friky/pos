@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState, useEffect, useCallback } from 'react'
 import '../styles/newsale.css'
 import { useNavigate } from 'react-router-dom'
 import SaleReceipt from './SaleReceipt'
@@ -14,6 +14,25 @@ const productImageSrc = (imageUrl) => {
   return value.startsWith('http') || value.startsWith('data:') ? value : `${import.meta.env.VITE_API_URL}${value}`
 }
 
+function loadPaystackInline() {
+  if (window.PaystackPop) return Promise.resolve(window.PaystackPop)
+  return new Promise((resolve, reject) => {
+    const existing = document.getElementById('paystack-inline-js')
+    if (existing) {
+      existing.addEventListener('load', () => resolve(window.PaystackPop), { once: true })
+      existing.addEventListener('error', () => reject(new Error('Unable to load Paystack Checkout.')), { once: true })
+      return
+    }
+    const script = document.createElement('script')
+    script.id = 'paystack-inline-js'
+    script.src = 'https://js.paystack.co/v2/inline.js'
+    script.async = true
+    script.onload = () => window.PaystackPop ? resolve(window.PaystackPop) : reject(new Error('Paystack Checkout did not load.'))
+    script.onerror = () => reject(new Error('Unable to load Paystack Checkout.'))
+    document.head.appendChild(script)
+  })
+}
+
 export default function NewSale({ user }) {
   const navigate = useNavigate()
   const userId = (() => {
@@ -27,10 +46,14 @@ export default function NewSale({ user }) {
   const [cashReceived, setCashReceived] = useState('')
   const [cashError, setCashError] = useState('')
   const [receipt, setReceipt] = useState(null)
+  const [offlineNotice, setOfflineNotice] = useState(false)
   const [confirmingSale, setConfirmingSale] = useState(false)
   const [discount, setDiscount] = useState(0)
   const [customer, setCustomer] = useState('Walk-in customer')
   const [heldSale, setHeldSale] = useState(false)
+  const [mobileError, setMobileError] = useState('')
+  const [offlineMobileNotice, setOfflineMobileNotice] = useState(false)
+  const [mobilePaymentPending, setMobilePaymentPending] = useState(null)
 
   const products = useLiveQuery(() => userId ? posDb.products.where('userId').equals(userId).toArray() : [], [userId], [])
   const recentSales = useLiveQuery(() => userId ? posDb.sales.where('userId').equals(userId).reverse().sortBy('createdAt') : [], [userId], [])
@@ -90,8 +113,13 @@ export default function NewSale({ user }) {
   const cashBalance = receivedAmount - total
 
   function selectPayment(method) {
+    if (method === 'Mobile' && !navigator.onLine) {
+      setOfflineMobileNotice(true)
+      return
+    }
     setPayment(method)
     setCashError('')
+    setMobileError('')
   }
 
   function addToCart(product) {
@@ -166,6 +194,132 @@ export default function NewSale({ user }) {
     setCashError('')
   }
 
+  const completeMobileSale = useCallback(async (reference) => {
+    const savedCheckout = sessionStorage.getItem(`paystack-sale:${reference}`)
+    if (!savedCheckout) throw new Error('The pending Mobile sale could not be found.')
+    const pendingSale = JSON.parse(savedCheckout)
+    const token = localStorage.getItem('posToken')
+    if (!token) throw new Error('Please log in again before completing this payment.')
+
+    const verifyResponse = await fetch(`${import.meta.env.VITE_API_URL}/api/paystack/verify/${encodeURIComponent(reference)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    const verification = await verifyResponse.json().catch(() => ({}))
+    if (!verifyResponse.ok) throw new Error(verification.message || 'Unable to verify the Mobile payment.')
+    if (verification.status !== 'success') return verification.status || 'pending'
+
+    const saleResponse = await fetch(`${import.meta.env.VITE_API_URL}/api/sales`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ ...pendingSale.salePayload, paystackReference: reference }),
+    })
+    const createdSale = await saleResponse.json().catch(() => ({}))
+    if (!saleResponse.ok) throw new Error(createdSale.message || 'Payment succeeded, but the sale could not be recorded.')
+
+    const now = new Date()
+    setReceipt({ orderNumber: `POS-${(createdSale._id || now.valueOf()).toString().slice(-8).toUpperCase()}`, customer: pendingSale.customer, date: now.toLocaleDateString(), time: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), cashier: pendingSale.cashier, businessName: pendingSale.businessName, businessLogoUrl: pendingSale.businessLogoUrl, register: 'Till 02', payment: 'Mobile', items: pendingSale.receiptItems, subtotal: pendingSale.salePayload.subtotal, discount: pendingSale.salePayload.discount, total: pendingSale.salePayload.total, received: pendingSale.received, change: pendingSale.change })
+    setCart([])
+    setDiscount(0)
+    setCustomer('Walk-in customer')
+    sessionStorage.removeItem(`paystack-sale:${reference}`)
+    await syncPosData({ userId, token })
+    return 'success'
+  }, [userId])
+
+  useEffect(() => {
+    if (!mobilePaymentPending) return undefined
+    let active = true
+    let attempts = 0
+
+    const checkPayment = async () => {
+      attempts += 1
+      try {
+        const status = await completeMobileSale(mobilePaymentPending.reference)
+        if (!active || status === 'pending') {
+          if (attempts >= 36 && active) {
+            setMobilePaymentPending(null)
+            setMobileError('The Mobile payment timed out. Confirm it was not charged, then try again or use Cash.')
+          }
+          return
+        }
+        setMobilePaymentPending(null)
+        if (status !== 'success') setMobileError('The Mobile payment was not completed. No sale was created.')
+      } catch (error) {
+        if (active) {
+          console.error('Mobile payment status error:', error)
+          setMobilePaymentPending(null)
+          setMobileError(error.message || 'We could not confirm the Mobile payment.')
+        }
+      }
+    }
+
+    checkPayment()
+    const timer = window.setInterval(checkPayment, 5000)
+    return () => {
+      active = false
+      window.clearInterval(timer)
+    }
+  }, [mobilePaymentPending, completeMobileSale])
+
+  async function startMobileCheckout(salePayload) {
+    if (!navigator.onLine) {
+      setOfflineMobileNotice(true)
+      return
+    }
+
+    if (!Number.isFinite(receivedAmount) || cashReceived.trim() === '') {
+      setMobileError('Enter the amount received from the customer.')
+      return
+    }
+    if (receivedAmount < total) {
+      setMobileError(`Amount received must cover the total of GH₵ ${total.toFixed(2)}.`)
+      return
+    }
+
+    const token = localStorage.getItem('posToken')
+    if (!token) {
+      setMobileError('You must be logged in to start a Mobile payment.')
+      return
+    }
+
+    setMobileError('')
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/paystack/initialize`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          amount: receivedAmount,
+          currency: 'GHS',
+          channels: ['mobile_money'],
+          metadata: { customer: salePayload.customer, source: 'pos-sale' },
+        }),
+      })
+      const checkout = await response.json().catch(() => ({}))
+      if (!response.ok || !checkout.reference || !checkout.accessCode) {
+        throw new Error(checkout.message || 'Unable to start Paystack Checkout.')
+      }
+
+      sessionStorage.setItem(`paystack-sale:${checkout.reference}`, JSON.stringify({
+        salePayload,
+        customer,
+        cashier: user?.name || 'Cashier',
+        businessName: user?.businessName,
+        businessLogoUrl: user?.businessLogoUrl,
+        receiptItems: cart.map((item) => ({ ...item })),
+        received: receivedAmount,
+        change: cashBalance,
+      }))
+      setMobilePaymentPending({ reference: checkout.reference })
+      const PaystackPop = await loadPaystackInline()
+      const popup = new PaystackPop()
+      popup.resumeTransaction(checkout.accessCode)
+    } catch (error) {
+      console.error('Paystack initialization error:', error)
+      setMobilePaymentPending(null)
+      setMobileError(error.message || 'Unable to open Paystack Checkout. Please try again or use Cash.')
+    }
+  }
+
   async function handleCompleteSale(isConfirmed = false) {
     if (!cart.length) {
       alert(
@@ -182,6 +336,17 @@ export default function NewSale({ user }) {
 
       if (receivedAmount < total) {
         setCashError(`Cash received must cover the total of GH₵ ${total.toFixed(2)}.`)
+        return
+      }
+    }
+
+    if (payment === 'Mobile') {
+      if (!Number.isFinite(receivedAmount) || cashReceived.trim() === '') {
+        setMobileError('Enter the amount received from the customer.')
+        return
+      }
+      if (receivedAmount < total) {
+        setMobileError(`Amount received must cover the total of GH₵ ${total.toFixed(2)}.`)
         return
       }
     }
@@ -208,13 +373,19 @@ export default function NewSale({ user }) {
       customer,
     }
 
+    if (payment === 'Mobile') {
+      await startMobileCheckout(salePayload)
+      return
+    }
+
     const saveOffline = async () => {
-      await queueOfflineSale(userId, salePayload)
+      const localSale = await queueOfflineSale(userId, salePayload)
+      setReceipt({ orderNumber: `POS-LOCAL-${localSale.clientRequestId.slice(-6).toUpperCase()}`, customer, date: now.toLocaleDateString(), time: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), cashier: user?.name || 'Cashier', businessName: user?.businessName, businessLogoUrl: user?.businessLogoUrl, register: 'Till 02', payment, items: cart.map((item) => ({ ...item })), subtotal, discount: discountAmount, total, received: payment === 'Cash' ? receivedAmount : total, change: payment === 'Cash' ? cashBalance : 0 })
       setCart([])
       setDiscount(0)
       setCustomer('Walk-in customer')
       setConfirmingSale(false)
-      alert('You are offline. The sale was saved locally and will synchronize automatically when the connection returns.')
+      setOfflineNotice(true)
     }
 
     if (!navigator.onLine) {
@@ -871,38 +1042,6 @@ export default function NewSale({ user }) {
 
                   </button>
 
-                  {/* CARD */}
-                  <button
-                    className={
-                      'payment-btn' +
-                      (payment === 'Card'
-                        ? ' active'
-                        : '')
-                    }
-                    onClick={() => selectPayment('Card')}
-                  >
-
-                    <svg
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                    >
-                      <rect
-                        x="3"
-                        y="5"
-                        width="18"
-                        height="14"
-                        rx="2"
-                      />
-
-                      <path d="M3 10h18" />
-                    </svg>
-
-                    Card
-
-                  </button>
-
                   {/* MOBILE */}
                   <button
                     className={
@@ -970,6 +1109,32 @@ export default function NewSale({ user }) {
                   </div>
                 )}
 
+                {payment === 'Mobile' && (
+                  <div className="mobile-payment">
+                    <label htmlFor="mobile-received">Amount received</label>
+                    <input
+                      id="mobile-received"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      inputMode="decimal"
+                      placeholder="0.00"
+                      value={cashReceived}
+                      onChange={(event) => {
+                        setCashReceived(event.target.value)
+                        setMobileError('')
+                      }}
+                    />
+                    <div className="cash-balance mobile-balance">
+                      <span>Balance / change due</span>
+                      <strong className={cashReceived !== '' && cashBalance < 0 ? 'amount-owing' : ''}>GH₵ {cashReceived === '' ? '0.00' : Math.max(cashBalance, 0).toFixed(2)}</strong>
+                    </div>
+                    {cashReceived !== '' && cashBalance < 0 && <p className="cash-shortfall">Amount still due: GH₵ {Math.abs(cashBalance).toFixed(2)}</p>}
+                    <p>Paystack Checkout will open securely in this screen. The customer can enter their Mobile Money number there.</p>
+                    {mobileError && <p className="cash-error" role="alert">{mobileError}</p>}
+                  </div>
+                )}
+
                 {/* CHECKOUT ACTIONS */}
                 <div className="checkout-action-wrap">
 
@@ -985,8 +1150,9 @@ export default function NewSale({ user }) {
                     <button
                       className="complete-btn"
                       onClick={() => handleCompleteSale()}
+                      disabled={Boolean(mobilePaymentPending)}
                     >
-                      Complete Sale
+                      {mobilePaymentPending ? 'Awaiting payment…' : payment === 'Mobile' ? 'Open Paystack Checkout' : 'Complete Sale'}
                     </button>
 
                   </div>
@@ -1027,8 +1193,29 @@ export default function NewSale({ user }) {
                 setConfirmingSale(false)
                 handleCompleteSale(true)
               }}>
-                Confirm &amp; prepare receipt
+                {payment === 'Mobile' ? 'Open Paystack Checkout' : 'Confirm & prepare receipt'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {offlineNotice && (
+        <div className="offline-sale-modal" role="dialog" aria-modal="true" aria-labelledby="offline-sale-title">
+          <div className="offline-sale-card"><div className="offline-sale-icon" aria-hidden="true">✓</div><span className="offline-sale-eyebrow">OFFLINE SALE SAVED</span><h2 id="offline-sale-title">Your sale is safely queued</h2><p>This sale is stored on this device and will synchronize automatically when an internet connection returns.</p><div className="offline-sale-actions"><button className="sale-confirm-approve" onClick={() => setOfflineNotice(false)}>View receipt</button></div></div>
+        </div>
+      )}
+      {offlineMobileNotice && (
+        <div className="offline-sale-modal" role="dialog" aria-modal="true" aria-labelledby="offline-mobile-title">
+          <div className="offline-sale-card">
+            <div className="offline-sale-icon" aria-hidden="true">!</div>
+            <span className="offline-sale-eyebrow">NO INTERNET CONNECTION</span>
+            <h2 id="offline-mobile-title">Mobile payment needs internet</h2>
+            <p>Paystack cannot open while this device is offline. Please use Cash for this sale, then try Mobile again when your connection returns.</p>
+            <div className="offline-sale-actions">
+              <button className="sale-confirm-approve" onClick={() => {
+                setPayment('Cash')
+                setOfflineMobileNotice(false)
+              }}>Use Cash</button>
             </div>
           </div>
         </div>

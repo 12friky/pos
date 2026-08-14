@@ -48,16 +48,17 @@ export default function Dashboard({ user }) {
     return totals
   }, { discount: 0, Cash: 0, Card: 0, Mobile: 0 })
   const topList = useMemo(() => {
+    const productByName = new Map(products.map((product) => [product.name, product]))
     const productsByName = new Map()
     rangeSales.forEach((sale) => sale.items.forEach((item) => {
-      const current = productsByName.get(item.name) || { name: item.name, units: 0, revenue: 0 }
+      const current = productsByName.get(item.name) || { name: item.name, units: 0, revenue: 0, imageUrl: productByName.get(item.name)?.imageUrl }
       current.units += Number(item.quantity) || 0
       current.revenue += (Number(item.unitPrice) || 0) * (Number(item.quantity) || 0)
       productsByName.set(item.name, current)
     }))
-    if (productsByName.size === 0) return inventoryFallback.slice(0, 0)
+    if (productsByName.size === 0) return inventoryFallback
     return [...productsByName.values()].sort((a, b) => b.units - a.units).slice(0, 3)
-  }, [rangeSales, inventoryFallback])
+  }, [rangeSales, inventoryFallback, products])
   const weeklySales = useMemo(() => Array.from({ length: 7 }, (_, index) => {
     const date = new Date(startOfToday)
     date.setDate(date.getDate() - (6 - index))
@@ -404,7 +405,7 @@ export default function Dashboard({ user }) {
 
     .top-item {
       display: grid;
-      grid-template-columns: 35px 1fr auto;
+      grid-template-columns: 35px 34px 1fr auto;
       align-items: center;
       gap: 12px;
       min-height: 58px;
@@ -414,6 +415,8 @@ export default function Dashboard({ user }) {
     .top-item:last-child {
       border-bottom: 0;
     }
+
+    .top-product-image { width: 34px; height: 34px; border-radius: 9px; object-fit: cover; background: #edf3ef; }
 
     .top-rank {
       width: 28px;
@@ -1098,6 +1101,8 @@ export default function Dashboard({ user }) {
                       <div className="top-rank">
                         {index + 1}
                       </div>
+
+                      {product.imageUrl ? <img className="top-product-image" src={product.imageUrl} alt={product.name} /> : <div className="top-product-image" />}
 
                       <div className="top-name">
                         {product.name}

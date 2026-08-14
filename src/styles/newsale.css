@@ -579,7 +579,7 @@
 
 .payment-options {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 8px;
   padding: 16px 20px 0;
 }
@@ -625,6 +625,41 @@
   color: #526057;
   font-size: 11px;
   font-weight: 750;
+}
+
+.mobile-payment {
+  margin: 16px 20px 0;
+  padding: 14px;
+  border: 1px solid #dce9de;
+  border-radius: 10px;
+  background: #f5f9f5;
+}
+
+.mobile-payment label {
+  display: block;
+  margin-bottom: 7px;
+  color: #526057;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.mobile-payment input {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 11px;
+  border: 1px solid #cfded1;
+  border-radius: 8px;
+  background: #fff;
+  color: #26312a;
+  font: inherit;
+  box-sizing: border-box;
+}
+
+.mobile-payment p {
+  margin: 9px 0 0;
+  color: #667169;
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .cash-input-row {
@@ -716,6 +751,11 @@
 
 .complete-btn:hover {
   background: #55715c;
+}
+
+.complete-btn:disabled {
+  cursor: wait;
+  opacity: .72;
 }
 
 /* =========================
@@ -812,6 +852,15 @@ button.recent-row:hover:not(:disabled) { background: transparent; }
   box-shadow: 0 22px 60px rgba(0, 0, 0, .25);
   color: #26312a;
 }
+
+.offline-sale-modal { position: fixed; inset: 0; z-index: 220; display: grid; place-items: center; padding: 20px; background: rgba(23, 32, 27, .58); }
+.offline-sale-card { width: min(100%, 410px); padding: 28px; border-radius: 18px; background: #fff; box-shadow: 0 22px 60px rgba(0,0,0,.25); color: #26312a; text-align: center; }
+.offline-sale-icon { width: 50px; height: 50px; display: grid; place-items: center; margin: 0 auto 14px; border-radius: 50%; background: #eaf3eb; color: #3e7a50; font-size: 24px; font-weight: 800; }
+.offline-sale-eyebrow { color: #4d7155; font-size: 10px; font-weight: 800; letter-spacing: .09em; }
+.offline-sale-card h2 { margin: 7px 0; font-size: 21px; letter-spacing: -.02em; }
+.offline-sale-card p { margin: 0; color: #758078; font-size: 13px; line-height: 1.55; }
+.offline-sale-actions { display: flex; justify-content: center; margin-top: 22px; }
+.offline-sale-actions button { min-height: 42px; border-radius: 9px; padding: 0 16px; font-size: 12px; font-weight: 750; cursor: pointer; }
 
 .sale-confirm-icon {
   width: 42px;
@@ -953,7 +1002,7 @@ button.recent-row:hover:not(:disabled) { background: transparent; }
   }
 
   .payment-options {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
   }
 
   .payment-btn {
