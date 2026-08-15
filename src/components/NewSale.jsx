@@ -226,15 +226,23 @@ export default function NewSale({ user }) {
         setSearch(barcode)
       }
     }
+    const startCamera = async () => {
+      const onFailure = () => undefined
+      try {
+        await scanner.start({ facingMode: { exact: cameraFacing } }, scannerConfig, onScanSuccess, onFailure)
+        return
+      } catch (constraintError) {
+        // Fall back to the actual device list for laptops and browsers that
+        // do not implement facingMode correctly.
+        const cameras = await Html5Qrcode.getCameras()
+        const preferred = cameraFacing === 'environment' ? /back|rear|environment/i : /front|user|face/i
+        const fallbackCamera = cameras.find((camera) => preferred.test(camera.label || '')) || cameras[0]
+        if (!fallbackCamera) throw constraintError
+        await scanner.start(fallbackCamera.id, scannerConfig, onScanSuccess, onFailure)
+      }
+    }
     try {
-      await scanner.start(
-        // Use the phone's facing-direction constraint instead of unreliable
-        // camera labels/list ordering on Android and iOS.
-        { facingMode: { exact: cameraFacing } },
-        scannerConfig,
-        onScanSuccess,
-        () => undefined
-      )
+      await startCamera()
     } catch (error) {
       saleScannerRef.current = null
       try { await scanner.clear() } catch { /* Scanner did not finish initializing. */ }

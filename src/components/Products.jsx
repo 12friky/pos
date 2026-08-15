@@ -103,15 +103,23 @@ export default function Products() {
       setScannerOpen(false)
       await stopScanner()
     }
+    const startCamera = async () => {
+      const onFailure = () => undefined
+      try {
+        await scanner.start({ facingMode: { exact: cameraFacing } }, scannerConfig, onScanSuccess, onFailure)
+        return
+      } catch (constraintError) {
+        // PCs normally expose just one camera and some mobile browsers do not
+        // support facingMode. Fall back to a real device ID in those cases.
+        const cameras = await Html5Qrcode.getCameras()
+        const preferred = cameraFacing === 'environment' ? /back|rear|environment/i : /front|user|face/i
+        const fallbackCamera = cameras.find((camera) => preferred.test(camera.label || '')) || cameras[0]
+        if (!fallbackCamera) throw constraintError
+        await scanner.start(fallbackCamera.id, scannerConfig, onScanSuccess, onFailure)
+      }
+    }
     try {
-      await scanner.start(
-        // Selecting by facing direction is reliable on phones; camera labels
-        // and their list order are inconsistent across Android/iOS browsers.
-        { facingMode: { exact: cameraFacing } },
-        scannerConfig,
-        onScanSuccess,
-        () => undefined
-      )
+      await startCamera()
     } catch (error) {
       scannerRef.current = null
       try { await scanner.clear() } catch { /* Scanner did not finish initializing. */ }
