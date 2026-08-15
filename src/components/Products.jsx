@@ -73,19 +73,6 @@ export default function Products() {
       return
     }
 
-    let selectedCamera
-    try {
-      const cameras = await Html5Qrcode.getCameras()
-      const cameraName = cameraFacing === 'environment' ? /back|rear|environment/i : /front|user|face/i
-      selectedCamera = cameras.find((camera) => cameraName.test(camera.label)) || cameras[cameraFacing === 'environment' ? cameras.length - 1 : 0]
-      if (!selectedCamera) throw new Error('No camera was found on this device.')
-    } catch (error) {
-      setScannerOpen(false)
-      setScannerError(`Camera is unavailable: ${error?.message || 'check the browser camera permission.'}`)
-      console.error('Could not list cameras:', error)
-      return
-    }
-
     const scanner = new Html5Qrcode(scannerRegionRef.current.id)
     scannerRef.current = scanner
     const scannerConfig = {
@@ -118,7 +105,9 @@ export default function Products() {
     }
     try {
       await scanner.start(
-        selectedCamera.id,
+        // Selecting by facing direction is reliable on phones; camera labels
+        // and their list order are inconsistent across Android/iOS browsers.
+        { facingMode: { exact: cameraFacing } },
         scannerConfig,
         onScanSuccess,
         () => undefined
@@ -136,6 +125,7 @@ export default function Products() {
     const nextFacing = scannerFacing === 'environment' ? 'user' : 'environment'
     setScannerFacing(nextFacing)
     await stopScanner()
+    await new Promise((resolve) => requestAnimationFrame(resolve))
     await startScanner(nextFacing)
   }
 

@@ -151,6 +151,7 @@ export default function NewSale({ user }) {
           name: product.name,
           sku: product.sku,
           price: product.price,
+          imageUrl: product.imageUrl,
           stock: product.stock,
           quantity: 1,
         },
@@ -187,19 +188,6 @@ export default function NewSale({ user }) {
     if (!window.isSecureContext && window.location.hostname !== 'localhost') {
       setSaleScannerOpen(false)
       setSaleScannerError('Camera access requires HTTPS. Open the POS using an HTTPS address, not an http:// network IP address.')
-      return
-    }
-
-    let selectedCamera
-    try {
-      const cameras = await Html5Qrcode.getCameras()
-      const cameraName = cameraFacing === 'environment' ? /back|rear|environment/i : /front|user|face/i
-      selectedCamera = cameras.find((camera) => cameraName.test(camera.label)) || cameras[cameraFacing === 'environment' ? cameras.length - 1 : 0]
-      if (!selectedCamera) throw new Error('No camera was found on this device.')
-    } catch (error) {
-      setSaleScannerOpen(false)
-      setSaleScannerError(`Camera is unavailable: ${error?.message || 'check the browser camera permission.'}`)
-      console.error('Could not list sale cameras:', error)
       return
     }
 
@@ -240,7 +228,9 @@ export default function NewSale({ user }) {
     }
     try {
       await scanner.start(
-        selectedCamera.id,
+        // Use the phone's facing-direction constraint instead of unreliable
+        // camera labels/list ordering on Android and iOS.
+        { facingMode: { exact: cameraFacing } },
         scannerConfig,
         onScanSuccess,
         () => undefined
@@ -258,6 +248,7 @@ export default function NewSale({ user }) {
     const nextFacing = saleScannerFacing === 'environment' ? 'user' : 'environment'
     setSaleScannerFacing(nextFacing)
     await stopSaleScanner()
+    await new Promise((resolve) => requestAnimationFrame(resolve))
     await startSaleScanner(nextFacing)
   }
 
@@ -737,9 +728,10 @@ export default function NewSale({ user }) {
                             key={product._id || product.id}
                             className="product-search-item"
                             type="button"
-                            disabled={(product.stock || 0) === 0}
-                            onClick={() => addToCart(product)}
+                          disabled={(product.stock || 0) === 0}
+                          onClick={() => addToCart(product)}
                           >
+                            {productImageSrc(product.imageUrl) && <img className="sale-product-thumbnail" src={productImageSrc(product.imageUrl)} alt="" />}
                             <div>
                               <div className="product-search-name">
                                 {product.name}
@@ -956,17 +948,20 @@ export default function NewSale({ user }) {
                         key={item.id}
                       >
 
-                        <div>
+                        <div className="cart-product-details">
 
-                          <div className="cart-name">
-                            {item.name}
-                          </div>
+                          {productImageSrc(item.imageUrl) && <img className="cart-product-thumbnail" src={productImageSrc(item.imageUrl)} alt="" />}
 
-                          <div className="cart-sku">
-                            {item.sku}
-                          </div>
+                          <div>
+                            <div className="cart-name">
+                              {item.name}
+                            </div>
 
-                          <div className="quantity-control">
+                            <div className="cart-sku">
+                              {item.sku}
+                            </div>
+
+                            <div className="quantity-control">
 
                             <button
                               className="qty-btn"
@@ -990,6 +985,7 @@ export default function NewSale({ user }) {
                               +
                             </button>
 
+                            </div>
                           </div>
 
                         </div>
