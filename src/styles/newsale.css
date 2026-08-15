@@ -205,6 +205,89 @@
   color: #9ba19d;
 }
 
+.sale-barcode-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.sale-scan-button {
+  border: 1px solid #90a98d;
+  border-radius: 9px;
+  background: #e7f0e8;
+  color: #3e5a3f;
+  padding: 8px 11px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sale-scan-button:disabled {
+  cursor: wait;
+  opacity: .65;
+}
+
+.sale-barcode-actions span {
+  color: #89938b;
+  font-size: 10px;
+}
+
+.sale-scanner-panel {
+  margin: 0 0 14px;
+  padding: 10px;
+  border: 1px solid #dce7dc;
+  border-radius: 12px;
+  background: #f8fbf7;
+}
+
+.sale-scanner-head,
+.sale-scanner-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.sale-scanner-head {
+  justify-content: space-between;
+  margin-bottom: 8px;
+  color: #526452;
+  font-size: 11px;
+}
+
+.sale-scanner-controls button {
+  border: 0;
+  background: transparent;
+  color: #3e5a3f;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sale-scanner-region {
+  width: 100%;
+  max-width: 350px;
+  min-height: 120px;
+  margin: 0 auto;
+  overflow: hidden;
+  border-radius: 9px;
+  background: #e8eee7;
+}
+
+.sale-scanner-region video,
+.sale-scanner-region img {
+  width: 100% !important;
+  height: 120px !important;
+  object-fit: cover;
+}
+
+.sale-scanner-error {
+  margin: -5px 0 10px;
+  color: #a24e43;
+  font-size: 11px;
+}
+
 .category-row {
   display: flex;
   align-items: center;

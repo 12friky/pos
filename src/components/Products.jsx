@@ -1,4 +1,5 @@
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState, useEffect, useRef, useCallback } from 'react'
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
 import { posDb } from '../data/posDb'
 import { syncPosData } from '../data/sync'
 
@@ -32,12 +33,117 @@ export default function Products() {
   const [successMessage, setSuccessMessage] = useState('')
   const [showError, setShowError] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
+  const [scannerOpen, setScannerOpen] = useState(false)
+  const [scannerError, setScannerError] = useState('')
+  const [scannerFacing, setScannerFacing] = useState('environment')
+  const scannerRef = useRef(null)
+  const scannerRegionRef = useRef(null)
+  const lastScanRef = useRef({ value: '', time: 0 })
+
+  const stopScanner = useCallback(async () => {
+    const scanner = scannerRef.current
+    if (!scanner) return
+
+    scannerRef.current = null
+    try {
+      if (scanner.isScanning) await scanner.stop()
+      await scanner.clear()
+    } catch (error) {
+      // The camera may already have been released by the browser.
+      console.warn('Could not completely close barcode scanner:', error)
+    }
+  }, [])
+
+  async function startScanner(cameraFacing = scannerFacing) {
+    setScannerError('')
+    setScannerOpen(true)
+
+    // Wait for the compact scanner region to be rendered before opening the camera.
+    await new Promise((resolve) => requestAnimationFrame(resolve))
+    if (!scannerRegionRef.current || scannerRef.current) return
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setScannerOpen(false)
+      setScannerError('This browser does not provide camera access. Open the POS in a current Chrome, Edge, or Safari browser.')
+      return
+    }
+    if (!window.isSecureContext && window.location.hostname !== 'localhost') {
+      setScannerOpen(false)
+      setScannerError('Camera access requires HTTPS. Open the POS using an HTTPS address, not an http:// network IP address.')
+      return
+    }
+
+    let selectedCamera
+    try {
+      const cameras = await Html5Qrcode.getCameras()
+      const cameraName = cameraFacing === 'environment' ? /back|rear|environment/i : /front|user|face/i
+      selectedCamera = cameras.find((camera) => cameraName.test(camera.label)) || cameras[cameraFacing === 'environment' ? cameras.length - 1 : 0]
+      if (!selectedCamera) throw new Error('No camera was found on this device.')
+    } catch (error) {
+      setScannerOpen(false)
+      setScannerError(`Camera is unavailable: ${error?.message || 'check the browser camera permission.'}`)
+      console.error('Could not list cameras:', error)
+      return
+    }
+
+    const scanner = new Html5Qrcode(scannerRegionRef.current.id)
+    scannerRef.current = scanner
+    const scannerConfig = {
+      fps: 12,
+      // Keep the box wide for retail labels, but never larger than the phone's camera preview.
+      qrbox: (width, height) => ({
+        width: Math.max(1, Math.min(350, Math.floor(width - 12))),
+        height: Math.max(1, Math.min(120, Math.floor(height - 12))),
+      }),
+      aspectRatio: 2.9,
+      // Intentionally excludes QR_CODE and every non-retail 2D format.
+      formatsToSupport: [
+        Html5QrcodeSupportedFormats.EAN_13,
+        Html5QrcodeSupportedFormats.EAN_8,
+        Html5QrcodeSupportedFormats.UPC_A,
+        Html5QrcodeSupportedFormats.UPC_E,
+        Html5QrcodeSupportedFormats.CODE_128,
+        Html5QrcodeSupportedFormats.CODE_39,
+      ],
+    }
+    const onScanSuccess = async (decodedText) => {
+      const barcode = decodedText.trim()
+      const now = Date.now()
+      if (!barcode || (lastScanRef.current.value === barcode && now - lastScanRef.current.time < 1000)) return
+
+      lastScanRef.current = { value: barcode, time: now }
+      setFormProduct((current) => ({ ...current, sku: barcode }))
+      setScannerOpen(false)
+      await stopScanner()
+    }
+    try {
+      await scanner.start(
+        selectedCamera.id,
+        scannerConfig,
+        onScanSuccess,
+        () => undefined
+      )
+    } catch (error) {
+      scannerRef.current = null
+      try { await scanner.clear() } catch { /* Scanner did not finish initializing. */ }
+      setScannerOpen(false)
+      setScannerError(`Camera could not start: ${error?.message || 'allow camera access and try again.'}`)
+      console.error('Barcode scanner error:', error)
+    }
+  }
+
+  async function switchScannerCamera() {
+    const nextFacing = scannerFacing === 'environment' ? 'user' : 'environment'
+    setScannerFacing(nextFacing)
+    await stopScanner()
+    await startScanner(nextFacing)
+  }
 
   useEffect(() => {
     const fetchProducts = async () => {
       const token = localStorage.getItem('posToken')
       let userId = ''
-      try { const user = JSON.parse(localStorage.getItem('posUser') || '{}'); userId = String(user.id || user._id || '') } catch {}
+      try { const user = JSON.parse(localStorage.getItem('posUser') || '{}'); userId = String(user.id || user._id || '') } catch { /* Treat invalid saved user data as signed out. */ }
       try {
         await syncPosData({ userId, token })
         const data = await posDb.products.where('userId').equals(userId).toArray()
@@ -53,6 +159,10 @@ export default function Products() {
 
     fetchProducts()
   }, [])
+
+  useEffect(() => () => {
+    void stopScanner()
+  }, [stopScanner])
 
   const categories = [
     'All',
@@ -134,6 +244,9 @@ export default function Products() {
   }
 
   function closeDrawer() {
+    stopScanner()
+    setScannerOpen(false)
+    setScannerError('')
     setShowDrawer(false)
     setActiveProduct(null)
     setOpenActionProduct(null)
@@ -193,6 +306,12 @@ export default function Products() {
       return
     }
 
+    if (!formProduct.sku.trim()) {
+      setErrorMessage('Scan or enter a barcode / SKU before saving the product.')
+      setShowError(true)
+      return
+    }
+
     if (formProduct.imageFile && formProduct.imageFile.size > 5 * 1024 * 1024) {
       setErrorMessage('Product image must be 5MB or smaller.')
       setShowError(true)
@@ -201,7 +320,7 @@ export default function Products() {
 
     const payload = {
       name: formProduct.name,
-      sku: formProduct.sku,
+      sku: formProduct.sku.trim(),
       category: formProduct.category,
       unit: formProduct.unit,
       price: parseFloat(formProduct.price) || 0,
@@ -262,6 +381,8 @@ export default function Products() {
         // show success modal
         setSuccessMessage(drawerMode === 'edit' ? 'Product updated successfully' : 'Product added successfully')
         setShowSuccess(true)
+        await stopScanner()
+        setScannerOpen(false)
         setShowDrawer(false)
         setOpenActionProduct(null)
         setActiveProduct(null)
@@ -1394,6 +1515,7 @@ export default function Products() {
 
         .scan-mini {
           width: 48px;
+          min-height: 43px;
           border-radius: 11px;
           border: 1px solid #90a98d;
           background: #e7f0e8;
@@ -1404,9 +1526,65 @@ export default function Products() {
           cursor: pointer;
         }
 
+        .scan-mini:disabled {
+          cursor: wait;
+          opacity: 0.65;
+        }
+
         .scan-mini svg {
           width: 16px;
           height: 16px;
+        }
+
+        .scanner-panel {
+          margin-top: 10px;
+          padding: 10px;
+          border: 1px solid #dce7dc;
+          border-radius: 12px;
+          background: #f8fbf7;
+        }
+
+        .scanner-head {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          flex-wrap: wrap;
+          gap: 12px;
+          margin-bottom: 8px;
+          font-size: 11px;
+          color: #526452;
+        }
+
+        .scanner-close {
+          border: 0;
+          background: transparent;
+          color: #3e5a3f;
+          font: inherit;
+          font-weight: 700;
+          cursor: pointer;
+        }
+
+        .scanner-region {
+          width: 100%;
+          max-width: 350px;
+          min-height: 120px;
+          margin: 0 auto;
+          overflow: hidden;
+          border-radius: 9px;
+          background: #e8eee7;
+        }
+
+        .scanner-region video,
+        .scanner-region img {
+          width: 100% !important;
+          height: 120px !important;
+          object-fit: cover;
+        }
+
+        .scanner-error {
+          margin: 8px 0 0;
+          color: #a24e43;
+          font-size: 11px;
         }
 
         .hint {
@@ -2238,7 +2416,14 @@ export default function Products() {
                           }))
                         }
                       />
-                      <div className="scan-mini">
+                      <button
+                        type="button"
+                        className="scan-mini"
+                        aria-label="Scan retail barcode"
+                        title="Scan retail barcode"
+                        disabled={scannerOpen}
+                        onClick={startScanner}
+                      >
                         <svg
                           viewBox="0 0 24 24"
                           fill="none"
@@ -2251,8 +2436,34 @@ export default function Products() {
                           <path d="M7 21H5a2 2 0 0 1-2-2v-2" />
                           <path d="M7 12h10" />
                         </svg>
-                      </div>
+                      </button>
                     </div>
+                    {scannerOpen && (
+                      <div className="scanner-panel">
+                        <div className="scanner-head">
+                          <span>Point the camera at a retail barcode</span>
+                          <button
+                            type="button"
+                            className="scanner-close"
+                            onClick={() => void switchScannerCamera()}
+                          >
+                            Use {scannerFacing === 'environment' ? 'front' : 'back'} camera
+                          </button>
+                          <button
+                            type="button"
+                            className="scanner-close"
+                            onClick={() => {
+                              void stopScanner()
+                              setScannerOpen(false)
+                            }}
+                          >
+                            Close camera
+                          </button>
+                        </div>
+                        <div id="product-barcode-scanner" className="scanner-region" ref={scannerRegionRef} />
+                      </div>
+                    )}
+                    {scannerError && <p className="scanner-error">{scannerError}</p>}
                   </div>
 
                   <div className="field-row">

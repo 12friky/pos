@@ -1,4 +1,5 @@
-import { useMemo, useState, useEffect, useCallback } from 'react'
+import { useMemo, useState, useEffect, useCallback, useRef } from 'react'
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
 import '../styles/newsale.css'
 import { useNavigate } from 'react-router-dom'
 import SaleReceipt from './SaleReceipt'
@@ -54,6 +55,12 @@ export default function NewSale({ user }) {
   const [mobileError, setMobileError] = useState('')
   const [offlineMobileNotice, setOfflineMobileNotice] = useState(false)
   const [mobilePaymentPending, setMobilePaymentPending] = useState(null)
+  const [saleScannerOpen, setSaleScannerOpen] = useState(false)
+  const [saleScannerError, setSaleScannerError] = useState('')
+  const [saleScannerFacing, setSaleScannerFacing] = useState('environment')
+  const saleScannerRef = useRef(null)
+  const saleScannerRegionRef = useRef(null)
+  const lastSaleScanRef = useRef({ value: '', time: 0 })
 
   const products = useLiveQuery(() => userId ? posDb.products.where('userId').equals(userId).toArray() : [], [userId], [])
   const recentSales = useLiveQuery(() => userId ? posDb.sales.where('userId').equals(userId).reverse().sortBy('createdAt') : [], [userId], [])
@@ -152,6 +159,111 @@ export default function NewSale({ user }) {
 
     setSearch('')
   }
+
+  const stopSaleScanner = useCallback(async () => {
+    const scanner = saleScannerRef.current
+    if (!scanner) return
+
+    saleScannerRef.current = null
+    try {
+      if (scanner.isScanning) await scanner.stop()
+      await scanner.clear()
+    } catch (error) {
+      console.warn('Could not completely close sale barcode scanner:', error)
+    }
+  }, [])
+
+  async function startSaleScanner(cameraFacing = saleScannerFacing) {
+    setSaleScannerError('')
+    setSaleScannerOpen(true)
+    await new Promise((resolve) => requestAnimationFrame(resolve))
+    if (!saleScannerRegionRef.current || saleScannerRef.current) return
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setSaleScannerOpen(false)
+      setSaleScannerError('This browser does not provide camera access. Open the POS in a current Chrome, Edge, or Safari browser.')
+      return
+    }
+    if (!window.isSecureContext && window.location.hostname !== 'localhost') {
+      setSaleScannerOpen(false)
+      setSaleScannerError('Camera access requires HTTPS. Open the POS using an HTTPS address, not an http:// network IP address.')
+      return
+    }
+
+    let selectedCamera
+    try {
+      const cameras = await Html5Qrcode.getCameras()
+      const cameraName = cameraFacing === 'environment' ? /back|rear|environment/i : /front|user|face/i
+      selectedCamera = cameras.find((camera) => cameraName.test(camera.label)) || cameras[cameraFacing === 'environment' ? cameras.length - 1 : 0]
+      if (!selectedCamera) throw new Error('No camera was found on this device.')
+    } catch (error) {
+      setSaleScannerOpen(false)
+      setSaleScannerError(`Camera is unavailable: ${error?.message || 'check the browser camera permission.'}`)
+      console.error('Could not list sale cameras:', error)
+      return
+    }
+
+    const scanner = new Html5Qrcode(saleScannerRegionRef.current.id)
+    saleScannerRef.current = scanner
+    const scannerConfig = {
+      fps: 12,
+      qrbox: (width, height) => ({
+        width: Math.max(1, Math.min(350, Math.floor(width - 12))),
+        height: Math.max(1, Math.min(120, Math.floor(height - 12))),
+      }),
+      aspectRatio: 2.9,
+      formatsToSupport: [
+        Html5QrcodeSupportedFormats.EAN_13,
+        Html5QrcodeSupportedFormats.EAN_8,
+        Html5QrcodeSupportedFormats.UPC_A,
+        Html5QrcodeSupportedFormats.UPC_E,
+        Html5QrcodeSupportedFormats.CODE_128,
+        Html5QrcodeSupportedFormats.CODE_39,
+      ],
+    }
+    const onScanSuccess = async (decodedText) => {
+      const barcode = decodedText.trim()
+      const now = Date.now()
+      if (!barcode || (lastSaleScanRef.current.value === barcode && now - lastSaleScanRef.current.time < 1000)) return
+
+      lastSaleScanRef.current = { value: barcode, time: now }
+      const product = products.find((item) => String(item.sku || '').trim() === barcode)
+      setSaleScannerOpen(false)
+      await stopSaleScanner()
+
+      if (product && (product.stock || 0) > 0) {
+        addToCart(product)
+      } else {
+        // Reuse the existing search result UI, including its "No matching products" state.
+        setSearch(barcode)
+      }
+    }
+    try {
+      await scanner.start(
+        selectedCamera.id,
+        scannerConfig,
+        onScanSuccess,
+        () => undefined
+      )
+    } catch (error) {
+      saleScannerRef.current = null
+      try { await scanner.clear() } catch { /* Scanner did not finish initializing. */ }
+      setSaleScannerOpen(false)
+      setSaleScannerError(`Camera could not start: ${error?.message || 'allow camera access and try again.'}`)
+      console.error('Sale barcode scanner error:', error)
+    }
+  }
+
+  async function switchSaleScannerCamera() {
+    const nextFacing = saleScannerFacing === 'environment' ? 'user' : 'environment'
+    setSaleScannerFacing(nextFacing)
+    await stopSaleScanner()
+    await startSaleScanner(nextFacing)
+  }
+
+  useEffect(() => () => {
+    void stopSaleScanner()
+  }, [stopSaleScanner])
 
   function increaseQuantity(id) {
     setCart((currentCart) =>
@@ -564,6 +676,36 @@ export default function NewSale({ user }) {
                     />
 
                   </label>
+
+                  <div className="sale-barcode-actions">
+                    <button
+                      type="button"
+                      className="sale-scan-button"
+                      onClick={startSaleScanner}
+                      disabled={saleScannerOpen}
+                    >
+                      Scan retail barcode
+                    </button>
+                    <span>Scans a product directly into the cart</span>
+                  </div>
+
+                  {saleScannerOpen && (
+                    <div className="sale-scanner-panel">
+                      <div className="sale-scanner-head">
+                        <span>Point the camera at a retail barcode</span>
+                        <div className="sale-scanner-controls">
+                          <button type="button" onClick={() => void switchSaleScannerCamera()}>
+                            Use {saleScannerFacing === 'environment' ? 'front' : 'back'} camera
+                          </button>
+                          <button type="button" onClick={() => { void stopSaleScanner(); setSaleScannerOpen(false) }}>
+                            Close camera
+                          </button>
+                        </div>
+                      </div>
+                      <div id="sale-barcode-scanner" className="sale-scanner-region" ref={saleScannerRegionRef} />
+                    </div>
+                  )}
+                  {saleScannerError && <p className="sale-scanner-error">{saleScannerError}</p>}
 
                   {/* CATEGORY FILTERS */}
                   <div className="category-row">
