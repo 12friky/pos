@@ -35,26 +35,50 @@ export default function Products() {
   const [errorMessage, setErrorMessage] = useState('')
   const [scannerOpen, setScannerOpen] = useState(false)
   const [scannerError, setScannerError] = useState('')
-  const [scannerFacing, setScannerFacing] = useState('environment')
+  const [scannerFacing, setScannerFacing] = useState(() => (
+    /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ? 'environment' : 'user'
+  ))
+  const [photoCameraOpen, setPhotoCameraOpen] = useState(false)
+  const [photoCameraError, setPhotoCameraError] = useState('')
   const scannerRef = useRef(null)
   const scannerRegionRef = useRef(null)
+  const scannerOperationRef = useRef(Promise.resolve())
+  const photoVideoRef = useRef(null)
+  const photoStreamRef = useRef(null)
   const lastScanRef = useRef({ value: '', time: 0 })
 
-  const stopScanner = useCallback(async () => {
-    const scanner = scannerRef.current
-    if (!scanner) return
+  const stopScanner = useCallback(() => {
+    const closeScanner = async () => {
+      const scanner = scannerRef.current
+      if (!scanner) return
 
-    scannerRef.current = null
-    try {
-      if (scanner.isScanning) await scanner.stop()
-      await scanner.clear()
-    } catch (error) {
-      // The camera may already have been released by the browser.
-      console.warn('Could not completely close barcode scanner:', error)
+      scannerRef.current = null
+      try {
+        if (scanner.isScanning) await scanner.stop()
+        await scanner.clear()
+      } catch (error) {
+        console.warn('Could not completely close barcode scanner:', error)
+      }
     }
+    const operation = scannerOperationRef.current.then(closeScanner, closeScanner)
+    scannerOperationRef.current = operation.catch(() => undefined)
+    return operation
   }, [])
 
+  async function getPreferredCameraId(cameraFacing) {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: cameraFacing } },
+      audio: false,
+    })
+    try {
+      return stream.getVideoTracks()[0]?.getSettings().deviceId
+    } finally {
+      stream.getTracks().forEach((track) => track.stop())
+    }
+  }
+
   async function startScanner(cameraFacing = scannerFacing) {
+    const start = async () => {
     setScannerError('')
     setScannerOpen(true)
 
@@ -105,18 +129,9 @@ export default function Products() {
     }
     const startCamera = async () => {
       const onFailure = () => undefined
-      try {
-        await scanner.start({ facingMode: { exact: cameraFacing } }, scannerConfig, onScanSuccess, onFailure)
-        return
-      } catch (constraintError) {
-        // PCs normally expose just one camera and some mobile browsers do not
-        // support facingMode. Fall back to a real device ID in those cases.
-        const cameras = await Html5Qrcode.getCameras()
-        const preferred = cameraFacing === 'environment' ? /back|rear|environment/i : /front|user|face/i
-        const fallbackCamera = cameras.find((camera) => preferred.test(camera.label || '')) || cameras[0]
-        if (!fallbackCamera) throw constraintError
-        await scanner.start(fallbackCamera.id, scannerConfig, onScanSuccess, onFailure)
-      }
+      const cameraId = await getPreferredCameraId(cameraFacing)
+      if (!cameraId) throw new Error('No camera was found')
+      await scanner.start(cameraId, scannerConfig, onScanSuccess, onFailure)
     }
     try {
       await startCamera()
@@ -127,6 +142,10 @@ export default function Products() {
       setScannerError(`Camera could not start: ${error?.message || 'allow camera access and try again.'}`)
       console.error('Barcode scanner error:', error)
     }
+    }
+    const operation = scannerOperationRef.current.then(start, start)
+    scannerOperationRef.current = operation.catch(() => undefined)
+    return operation
   }
 
   async function switchScannerCamera() {
@@ -135,6 +154,48 @@ export default function Products() {
     await stopScanner()
     await new Promise((resolve) => requestAnimationFrame(resolve))
     await startScanner(nextFacing)
+  }
+
+  function closePhotoCamera() {
+    photoStreamRef.current?.getTracks().forEach((track) => track.stop())
+    photoStreamRef.current = null
+    setPhotoCameraOpen(false)
+  }
+
+  async function startPhotoCamera() {
+    setPhotoCameraError('')
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setPhotoCameraError('This browser does not provide camera access.')
+      return
+    }
+    setPhotoCameraOpen(true)
+    await new Promise((resolve) => requestAnimationFrame(resolve))
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false })
+      photoStreamRef.current = stream
+      if (photoVideoRef.current) {
+        photoVideoRef.current.srcObject = stream
+        await photoVideoRef.current.play()
+      }
+    } catch (error) {
+      closePhotoCamera()
+      setPhotoCameraError(`Camera could not start: ${error?.message || 'allow camera access and try again.'}`)
+    }
+  }
+
+  function takePhoto() {
+    const video = photoVideoRef.current
+    if (!video?.videoWidth || !video.videoHeight) return
+    const canvas = document.createElement('canvas')
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
+    canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height)
+    canvas.toBlob((blob) => {
+      if (!blob) return
+      const file = new File([blob], `product-photo-${Date.now()}.jpg`, { type: 'image/jpeg' })
+      setFormProduct((current) => ({ ...current, imageFile: file, imagePreview: URL.createObjectURL(file) }))
+      closePhotoCamera()
+    }, 'image/jpeg', 0.9)
   }
 
   useEffect(() => {
@@ -160,11 +221,34 @@ export default function Products() {
 
   useEffect(() => () => {
     void stopScanner()
+    closePhotoCamera()
   }, [stopScanner])
 
   const categories = [
     'All',
     ...new Set(products.map((product) => product.category)),
+  ]
+
+  const productCategories = [
+    ...new Set([
+      'Food',
+      'Drinks',
+      'Snacks',
+      'Bakery',
+      'Household',
+      ...products.map((product) => product.category).filter(Boolean),
+    ]),
+  ]
+
+  const productUnits = [
+    ...new Set([
+      'Plate',
+      'Bottle',
+      'Can',
+      'Piece',
+      'Loaf',
+      ...products.map((product) => product.unit).filter(Boolean),
+    ]),
   ]
 
   const getStockStatus = (product) => {
@@ -237,12 +321,15 @@ export default function Products() {
 
   function removeImage() {
     setFormProduct((current) => ({ ...current, imageFile: null, imagePreview: '' }))
-    const inp = document.getElementById('product-image-upload')
-    if (inp) inp.value = ''
+    ;['product-image-upload'].forEach((inputId) => {
+      const input = document.getElementById(inputId)
+      if (input) input.value = ''
+    })
   }
 
   function closeDrawer() {
     stopScanner()
+    closePhotoCamera()
     setScannerOpen(false)
     setScannerError('')
     setShowDrawer(false)
@@ -1579,6 +1666,17 @@ export default function Products() {
           object-fit: cover;
         }
 
+        .photo-camera-preview {
+          display: block;
+          width: 100%;
+          max-width: 350px;
+          height: 220px;
+          margin: 0 auto;
+          border-radius: 9px;
+          background: #e8eee7;
+          object-fit: cover;
+        }
+
         .scanner-error {
           margin: 8px 0 0;
           color: #a24e43;
@@ -2362,7 +2460,7 @@ export default function Products() {
                 </div>
 
                 <div className="drawer-body">
-                    <label className="img-upload" htmlFor="product-image-upload">
+                    <div className="img-upload">
                       {formProduct.imagePreview ? (
                         <div style={{ position: 'relative', width: '100%' }}>
                           <img src={formProduct.imagePreview} alt="preview" style={{ width: '100%', borderRadius: 12, maxHeight: 220, objectFit: 'cover' }} />
@@ -2380,12 +2478,31 @@ export default function Products() {
                             <circle cx="9" cy="9" r="2" />
                             <path d="m21 15-5-5L5 21" />
                           </svg>
-                          <span>Upload product image</span>
-                          <small>PNG or JPG, up to 2MB</small>
+                          <span>Add a product image</span>
+                          <small>Upload an image or take a new photo (up to 5MB)</small>
                         </>
                       )}
+                      <div style={{ display: 'flex', justifyContent: 'center', gap: 10, marginTop: 12 }}>
+                        <label className="scan-mini" htmlFor="product-image-upload" style={{ width: 'auto', padding: '0 12px', display: 'inline-flex', alignItems: 'center' }}>
+                          Upload image
+                        </label>
+                        <button type="button" className="scan-mini" onClick={() => void startPhotoCamera()} style={{ width: 'auto', padding: '0 12px', display: 'inline-flex', alignItems: 'center' }}>
+                          Take photo
+                        </button>
+                      </div>
                       <input id="product-image-upload" type="file" accept="image/*" style={{ display: 'none' }} onChange={handleImageChange} />
-                    </label>
+                      {photoCameraOpen && (
+                        <div className="scanner-panel" style={{ marginTop: 12 }}>
+                          <div className="scanner-head">
+                            <span>Frame the product, then take the photo.</span>
+                            <button type="button" className="scanner-close" onClick={closePhotoCamera}>Close camera</button>
+                          </div>
+                          <video ref={photoVideoRef} className="photo-camera-preview" playsInline muted />
+                          <button type="button" className="scanner-close" style={{ display: 'block', margin: '10px auto 0' }} onClick={takePhoto}>Use this photo</button>
+                        </div>
+                      )}
+                      {photoCameraError && <p className="scanner-error">{photoCameraError}</p>}
+                    </div>
 
                   <div className="field-group">
                     <label>Product name</label>
@@ -2467,7 +2584,10 @@ export default function Products() {
                   <div className="field-row">
                     <div>
                       <label>Category</label>
-                      <select
+                      <input
+                        type="text"
+                        list="product-category-options"
+                        placeholder="Type or select a category"
                         value={formProduct.category}
                         onChange={(e) =>
                           setFormProduct((current) => ({
@@ -2475,17 +2595,17 @@ export default function Products() {
                             category: e.target.value,
                           }))
                         }
-                      >
-                        <option>Food</option>
-                        <option>Drinks</option>
-                        <option>Snacks</option>
-                        <option>Bakery</option>
-                        <option>Household</option>
-                      </select>
+                      />
+                      <datalist id="product-category-options">
+                        {productCategories.map((item) => <option key={item} value={item} />)}
+                      </datalist>
                     </div>
                     <div>
                       <label>Unit</label>
-                      <select
+                      <input
+                        type="text"
+                        list="product-unit-options"
+                        placeholder="Type or select a unit"
                         value={formProduct.unit}
                         onChange={(e) =>
                           setFormProduct((current) => ({
@@ -2493,13 +2613,10 @@ export default function Products() {
                             unit: e.target.value,
                           }))
                         }
-                      >
-                        <option>Plate</option>
-                        <option>Bottle</option>
-                        <option>Can</option>
-                        <option>Piece</option>
-                        <option>Loaf</option>
-                      </select>
+                      />
+                      <datalist id="product-unit-options">
+                        {productUnits.map((item) => <option key={item} value={item} />)}
+                      </datalist>
                     </div>
                   </div>
 

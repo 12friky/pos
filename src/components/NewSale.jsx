@@ -57,9 +57,12 @@ export default function NewSale({ user }) {
   const [mobilePaymentPending, setMobilePaymentPending] = useState(null)
   const [saleScannerOpen, setSaleScannerOpen] = useState(false)
   const [saleScannerError, setSaleScannerError] = useState('')
-  const [saleScannerFacing, setSaleScannerFacing] = useState('environment')
+  const [saleScannerFacing, setSaleScannerFacing] = useState(() => (
+    /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ? 'environment' : 'user'
+  ))
   const saleScannerRef = useRef(null)
   const saleScannerRegionRef = useRef(null)
+  const saleScannerOperationRef = useRef(Promise.resolve())
   const lastSaleScanRef = useRef({ value: '', time: 0 })
 
   const products = useLiveQuery(() => userId ? posDb.products.where('userId').equals(userId).toArray() : [], [userId], [])
@@ -161,20 +164,38 @@ export default function NewSale({ user }) {
     setSearch('')
   }
 
-  const stopSaleScanner = useCallback(async () => {
-    const scanner = saleScannerRef.current
-    if (!scanner) return
+  const stopSaleScanner = useCallback(() => {
+    const closeScanner = async () => {
+      const scanner = saleScannerRef.current
+      if (!scanner) return
 
-    saleScannerRef.current = null
-    try {
-      if (scanner.isScanning) await scanner.stop()
-      await scanner.clear()
-    } catch (error) {
-      console.warn('Could not completely close sale barcode scanner:', error)
+      saleScannerRef.current = null
+      try {
+        if (scanner.isScanning) await scanner.stop()
+        await scanner.clear()
+      } catch (error) {
+        console.warn('Could not completely close sale barcode scanner:', error)
+      }
     }
+    const operation = saleScannerOperationRef.current.then(closeScanner, closeScanner)
+    saleScannerOperationRef.current = operation.catch(() => undefined)
+    return operation
   }, [])
 
+  async function getPreferredSaleCameraId(cameraFacing) {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: cameraFacing } },
+      audio: false,
+    })
+    try {
+      return stream.getVideoTracks()[0]?.getSettings().deviceId
+    } finally {
+      stream.getTracks().forEach((track) => track.stop())
+    }
+  }
+
   async function startSaleScanner(cameraFacing = saleScannerFacing) {
+    const start = async () => {
     setSaleScannerError('')
     setSaleScannerOpen(true)
     await new Promise((resolve) => requestAnimationFrame(resolve))
@@ -228,18 +249,9 @@ export default function NewSale({ user }) {
     }
     const startCamera = async () => {
       const onFailure = () => undefined
-      try {
-        await scanner.start({ facingMode: { exact: cameraFacing } }, scannerConfig, onScanSuccess, onFailure)
-        return
-      } catch (constraintError) {
-        // Fall back to the actual device list for laptops and browsers that
-        // do not implement facingMode correctly.
-        const cameras = await Html5Qrcode.getCameras()
-        const preferred = cameraFacing === 'environment' ? /back|rear|environment/i : /front|user|face/i
-        const fallbackCamera = cameras.find((camera) => preferred.test(camera.label || '')) || cameras[0]
-        if (!fallbackCamera) throw constraintError
-        await scanner.start(fallbackCamera.id, scannerConfig, onScanSuccess, onFailure)
-      }
+      const cameraId = await getPreferredSaleCameraId(cameraFacing)
+      if (!cameraId) throw new Error('No camera was found')
+      await scanner.start(cameraId, scannerConfig, onScanSuccess, onFailure)
     }
     try {
       await startCamera()
@@ -250,6 +262,10 @@ export default function NewSale({ user }) {
       setSaleScannerError(`Camera could not start: ${error?.message || 'allow camera access and try again.'}`)
       console.error('Sale barcode scanner error:', error)
     }
+    }
+    const operation = saleScannerOperationRef.current.then(start, start)
+    saleScannerOperationRef.current = operation.catch(() => undefined)
+    return operation
   }
 
   async function switchSaleScannerCamera() {
