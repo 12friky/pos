@@ -7,7 +7,6 @@ import Inventory from './Inventory'
 import Reports from './Reports'
 import SaleHistory from './SaleHistory'
 import Login from './Login'
-import Register from './Register'
 import Settings from './Settings'
 import { CustomerTools, InventoryUtilities, MarketingCenter } from './Utilities'
 import { syncPosData } from '../data/sync'
@@ -16,7 +15,6 @@ import { useOnlineStatus } from '../hooks/useOnlineStatus'
 function App() {
   const online = useOnlineStatus()
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [utilitiesOpen, setUtilitiesOpen] = useState(false)
   const [isMobileNav, setIsMobileNav] = useState(() => window.matchMedia('(max-width: 1024px)').matches)
   const [isLoggedIn, setIsLoggedIn] = useState(() => Boolean(localStorage.getItem('posToken')))
   const [currentUser, setCurrentUser] = useState(() => {
@@ -154,16 +152,9 @@ function App() {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
             Settings
           </NavLink>
-          <button type="button" className="nav-label utilities-toggle" onClick={() => setUtilitiesOpen((open) => !open)} aria-expanded={utilitiesOpen}>
-            Utilities <span>{utilitiesOpen ? '⌃' : '⌄'}</span>
+          <button type="button" className="nav-label utilities-toggle" aria-expanded={false}>
+            Utilities
           </button>
-          {utilitiesOpen && (
-            <div className="utilities-submenu">
-              <NavLink to="/utilities/marketing" onClick={() => setSidebarOpen(false)} className={({ isActive }) => isActive ? 'nav-item active' : 'nav-item'}>📣 Marketing Center</NavLink>
-              <NavLink to="/utilities/customers" onClick={() => setSidebarOpen(false)} className={({ isActive }) => isActive ? 'nav-item active' : 'nav-item'}>👥 Customer Tools</NavLink>
-              <NavLink to="/utilities/inventory" onClick={() => setSidebarOpen(false)} className={({ isActive }) => isActive ? 'nav-item active' : 'nav-item'}>📦 Inventory Utilities</NavLink>
-            </div>
-          )}
           <button
             type="button"
             className="nav-item"
@@ -221,7 +212,7 @@ function App() {
         />
         <Route
           path="/register"
-          element={isLoggedIn ? <Navigate replace to="/" /> : <Register onLogin={handleLogin} />}
+          element={<Navigate replace to="/login" />}
         />
         <Route path="/*" element={isLoggedIn ? dashboardShell : <Navigate replace to="/login" />} />
       </Routes>

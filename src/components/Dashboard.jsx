@@ -864,7 +864,7 @@ export default function Dashboard({ user }) {
           <header className="topbar">
             <div>
               <div className="greeting-eyebrow">
-                TUE, AUG 11 · TILL 02 OPEN
+                TUE, AUG 11
               </div>
 
               <div className="greeting">
@@ -907,7 +907,7 @@ export default function Dashboard({ user }) {
                 />
               </div>
 
-              <button className="icon-btn">
+              <button className="icon-btn" onClick={() => alert('Coming soon')} aria-label="Notifications">
                 <svg
                   viewBox="0 0 24 24"
                   fill="none"

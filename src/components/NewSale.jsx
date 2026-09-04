@@ -590,7 +590,7 @@ export default function NewSale({ user }) {
 
             <div>
               <div className="sale-eyebrow">
-                New Sale · Till 02
+                New Sale
               </div>
 
               <div className="sale-title">
@@ -599,11 +599,6 @@ export default function NewSale({ user }) {
             </div>
 
             <div className="sale-header-actions">
-
-              <div className="till-status">
-                <span className="status-dot" />
-                Till 02 Open
-              </div>
 
               <button
                 className="outline-btn"

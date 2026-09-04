@@ -124,17 +124,6 @@ export default function Login({ onLogin }) {
             </button>
           </form>
 
-          <div className="signup-prompt">
-            <span>Don't have an account?</span>
-            <button
-              type="button"
-              className="signup-link"
-              onClick={() => navigate('/register')}
-            >
-              Sign up
-            </button>
-          </div>
-
           <div className="login-footer">
             <span>Point of Sale</span>
             <span className="footer-dot">•</span>
